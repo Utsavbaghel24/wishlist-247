@@ -1,0 +1,51 @@
+client_id = "2b8e6fdb5104ecbbfb5820eb32e312fa"
+name = "Wishlist-247"
+application_url = "https://motor-give-medium-makers.trycloudflare.com"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+include_config_on_deploy = true
+
+[webhooks]
+api_version = "2026-04"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+[access_scopes]
+scopes = "write_products,read_products"
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://motor-give-medium-makers.trycloudflare.com/api/auth",
+  "https://motor-give-medium-makers.trycloudflare.com/api/auth/callback"
+]
+
+[app_proxy]
+url = "https://motor-give-medium-makers.trycloudflare.com/proxy"
+subpath = "wishlist"
+prefix = "apps"
+
+# Admin left-sidebar links under Apps → Wishlist-247
+[[extensions]]
+type = "admin_link"
+name = "Wishlist-247 Navigation"
+
+  [[extensions.links]]
+  title = "Settings"
+  url = "/app/settings"
+
+  [[extensions.links]]
+  title = "Plans"
+  url = "/app/pricing"
+
+  [[extensions.links]]
+  title = "Help"
+  url = "/app/help"

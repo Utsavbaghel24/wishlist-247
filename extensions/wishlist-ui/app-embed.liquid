@@ -1,0 +1,62 @@
+{%- comment -%}
+  Wishlist App Embed (Shopify-standard)
+  - Loads a tiny bootstrap only
+  - Bootstrap checks billing via App Proxy
+  - Wishlist UI + scripts load ONLY if plan is active
+{%- endcomment -%}
+
+<script>
+  /* Global vars used by wishlist scripts */
+  window.wishlistCustomerId = {{ customer.id | json }};
+  window.WISHLIST_PAGE_URL = "/pages/wishlist";
+</script>
+
+<script>
+  (function () {
+    /*
+      From app.toml:
+      prefix = "apps"
+      subpath = "wishlist"
+      => Proxy URL = /apps/wishlist
+    */
+    var PROXY_BASE = "/apps/wishlist";
+
+    function loadScript(src) {
+      var s = document.createElement("script");
+      s.src = src;
+      s.defer = true;
+      document.head.appendChild(s);
+    }
+
+    // Call proxy to check billing
+fetch(PROXY_BASE + "/status?_t=" + Date.now(), { credentials: "include" })
+      .then(function (res) {
+        // 402 = unpaid store (blocked intentionally)
+        if (res.status === 402) return null;
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || data.ok !== true) return;
+
+        // ✅ Mark store as PAID (used by blocks to show UI)
+        window.__WISHLIST_PAID__ = true;
+        document.documentElement.classList.add("wishlist-paid");
+
+        // ✅ Load wishlist scripts ONLY for paid stores
+        loadScript("{{ 'wishlist.js' | asset_url }}");
+        loadScript("{{ 'wishlist-header.js' | asset_url }}");
+      })
+      .catch(function () {
+        // Fail closed: do nothing
+      });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Wishlist Embed",
+  "target": "body",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,678 @@
+{% comment %}
+Wishlist Page (FULL FINAL – Shop-safe + Guest-safe + Merge-safe + Cart Drawer Refresh FIXED)
+
+Fixes included:
+1) Always pass ?shop=Shopify.shop to list/toggle/merge (prevents shop mismatch => empty page)
+2) Uses SAME guest id key as product page wishlist.js: wl_guest_id
+3) Merge guest -> logged-in safely (won’t break if merge fails)
+4) Resolves activeCustomerId by checking which ID actually has items
+5) Add to cart refreshes cart drawer WITHOUT reload (FIXED for themes where drawer items were blank)
+6) Remove is optimistic (smooth animation) + sync header badge
+{% endcomment %}
+
+<style>
+  /* Always show wishlist UI (do NOT hard-hide) */
+  .wishlist-ui { display: block !important; }
+
+  /* If not paid/active: show but disable (still visible) */
+  html:not(.wishlist-paid) .wishlist-ui {
+    opacity: .45;
+    pointer-events: none;
+    filter: grayscale(1);
+  }
+</style>
+
+<script>
+  window.wishlistCustomerId = {{ customer.id | json }};
+</script>
+
+{%- comment -%}
+Load wishlist.js only if not already loaded by App Embed.
+Use defer to avoid parser-blocking.
+{%- endcomment -%}
+<script>
+  (function(){
+    var alreadyLoaded =
+      (typeof window.WishlistUI !== "undefined") ||
+      document.querySelector('script[data-wl-script="1"]');
+
+    if (alreadyLoaded) return;
+
+    var s = document.createElement("script");
+    s.src = {{ 'wishlist.js' | asset_url | json }};
+    s.defer = true;
+    s.setAttribute("data-wl-script","1");
+    document.head.appendChild(s);
+  })();
+</script>
+
+<div class="wishlist-ui wishlist-ui--page">
+  <div class="wl-page">
+    <h2 class="wl-title">My Wishlist</h2>
+
+    <p class="wl-guest-msg"{% if customer %} style="display:none"{% endif %}>
+      To save your wishlist please
+      <a href="{{ routes.account_login_url }}">login</a> or
+      <a href="{{ routes.account_register_url }}">sign up</a>.
+    </p>
+
+    <div class="wl-grid" data-wl-grid></div>
+
+    <div class="wl-toast" data-wl-toast style="display:none"></div>
+  </div>
+
+  <script defer>
+  (function () {
+    var grid = document.querySelector("[data-wl-grid]");
+    var toast = document.querySelector("[data-wl-toast]");
+    if (!grid) return;
+
+    function esc(s) {
+      return String(s || "")
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+    }
+
+    function showToast(msg) {
+      if (!toast) return;
+      toast.textContent = msg;
+      toast.style.display = "block";
+      toast.classList.add("is-show");
+      toast.classList.remove("is-hide");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(function () {
+        toast.classList.add("is-hide");
+        toast.classList.remove("is-show");
+        setTimeout(function(){ toast.style.display="none"; }, 220);
+      }, 1200);
+    }
+
+    /* -----------------------
+       SHOP (critical for App Proxy)
+    ------------------------*/
+    function getShopParam() {
+      return (window.Shopify && Shopify.shop) ? String(Shopify.shop) : "";
+    }
+
+    /* -----------------------
+       Guest ID (same key as product page wishlist.js)
+    ------------------------*/
+    function getGuestId() {
+      var key = "wl_guest_id";
+      var gid = localStorage.getItem(key);
+      if (!gid) {
+        gid = "guest:" + Date.now() + "-" + Math.random().toString(16).slice(2);
+        localStorage.setItem(key, gid);
+      }
+      return gid;
+    }
+
+    var loggedInId = {{ customer.id | json }};
+    var guestId = getGuestId();
+
+    // IMPORTANT: do NOT lock to logged-in id until we confirm merge or list has items
+    var activeCustomerId = loggedInId ? String(loggedInId) : String(guestId);
+
+    /* -----------------------
+       Wishlist API (shop-safe)
+    ------------------------*/
+    async function apiListFor(customerId) {
+      var shop = getShopParam();
+      var url = "/apps/wishlist/list?customerId=" + encodeURIComponent(String(customerId));
+      if (shop) url += "&shop=" + encodeURIComponent(shop);
+
+      var res = await fetch(url, { credentials: "same-origin", cache: "no-store" });
+      if (!res.ok) return [];
+      var data = await res.json();
+      return (data && Array.isArray(data.items)) ? data.items : [];
+    }
+
+    async function apiToggleFor(customerId, productId, variantId) {
+      var shop = getShopParam();
+      var url = "/apps/wishlist/toggle";
+      if (shop) url += "?shop=" + encodeURIComponent(shop);
+
+      var res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+        credentials: "same-origin",
+        body: new URLSearchParams({
+          customerId: String(customerId),
+          productId: String(productId || ""),
+          variantId: String(variantId || "")
+        })
+      });
+      try { return await res.json(); } catch(e) { return { ok:false }; }
+    }
+
+    /* -----------------------
+       AUTO MERGE guest -> customer
+       (only switch active id on success)
+    ------------------------*/
+    async function mergeIfNeeded() {
+      if (!loggedInId) return;
+
+      var mergedTo = localStorage.getItem("wl_merged_to");
+      if (mergedTo === String(loggedInId)) {
+        activeCustomerId = String(loggedInId);
+        return;
+      }
+
+      try {
+        var shop = getShopParam();
+        var mergeUrl = "/apps/wishlist/merge";
+        if (shop) mergeUrl += "?shop=" + encodeURIComponent(shop);
+
+        var res = await fetch(mergeUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
+          credentials: "same-origin",
+          body: new URLSearchParams({
+            fromCustomerId: String(guestId),
+            toCustomerId: String(loggedInId)
+          })
+        });
+
+        var data = {};
+        try { data = await res.json(); } catch(e) {}
+
+        if (res.ok && data && data.ok) {
+          localStorage.setItem("wl_merged_to", String(loggedInId));
+          activeCustomerId = String(loggedInId);
+
+          if (window.WishlistUI && window.WishlistUI.sync) {
+            window.WishlistUI.sync();
+          }
+        }
+      } catch (e) {
+        console.error("Wishlist merge failed", e);
+      }
+    }
+
+    /* -----------------------
+       Price helpers
+    ------------------------*/
+    function toCents(price) {
+      if (price == null) return null;
+      if (typeof price === "string") {
+        var f = parseFloat(price);
+        if (isNaN(f)) return null;
+        return Math.round(f * 100);
+      }
+      if (typeof price === "number") {
+        if (price % 1 !== 0) return Math.round(price * 100);
+        return price;
+      }
+      return null;
+    }
+
+    function moneyFromCents(cents) {
+      if (cents == null) return "";
+      var n = Number(cents) / 100;
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: "{{ cart.currency.iso_code }}"
+        }).format(n);
+      } catch(e) {
+        return "$" + n.toFixed(2);
+      }
+    }
+
+    function normalizeImg(x) {
+      if (!x) return "";
+      if (typeof x === "string") return x;
+      if (typeof x === "object") {
+        if (x.src) return String(x.src);
+        if (x.url) return String(x.url);
+      }
+      return "";
+    }
+
+    function pickImage(product, variant) {
+      if (variant) {
+        if (variant.featured_image && typeof variant.featured_image === "object" && variant.featured_image.src) {
+          return normalizeImg(variant.featured_image.src);
+        }
+        if (variant.featured_image && typeof variant.featured_image === "string") {
+          return normalizeImg(variant.featured_image);
+        }
+      }
+      if (product) {
+        if (product.featured_image) return normalizeImg(product.featured_image);
+        if (product.image) return normalizeImg(product.image);
+        if (product.images && product.images.length) {
+          var first = product.images[0];
+          if (typeof first === "string") return first;
+          if (typeof first === "object" && first.src) return String(first.src);
+        }
+      }
+      return "";
+    }
+
+    /* ======================================================
+       CART DRAWER REFRESH (FIXED)
+       - Only request stable section ids
+       - Update cart-drawer reliably even if renderContents fails
+    ====================================================== */
+    function getCartSectionIds() {
+      return ["cart-drawer","cart-icon-bubble","cart-notification"];
+    }
+
+    function htmlToDoc(html) {
+      try {
+        return new DOMParser().parseFromString(String(html || ""), "text/html");
+      } catch(e) {
+        return null;
+      }
+    }
+
+    function setCartDrawerHtml(sectionHtml) {
+      var cd = document.querySelector("cart-drawer");
+      if (!cd) return false;
+
+      var doc = htmlToDoc(sectionHtml);
+      if (doc) {
+        var newCd = doc.querySelector("cart-drawer");
+        if (newCd) {
+          cd.innerHTML = newCd.innerHTML;
+          return true;
+        }
+      }
+
+      cd.innerHTML = sectionHtml;
+      return true;
+    }
+
+    function applySections(sectionsObj) {
+      if (!sectionsObj) return;
+
+      var cd = document.querySelector("cart-drawer");
+      if (cd && typeof cd.renderContents === "function") {
+        try {
+          cd.renderContents({ sections: sectionsObj });
+          return;
+        } catch(e) {}
+      }
+
+      if (sectionsObj["cart-drawer"]) {
+        setCartDrawerHtml(sectionsObj["cart-drawer"]);
+      }
+
+      for (var key in sectionsObj) {
+        if (!sectionsObj.hasOwnProperty(key)) continue;
+        var html = sectionsObj[key];
+
+        var wrap = document.getElementById("shopify-section-" + key);
+        if (wrap) { wrap.innerHTML = html; continue; }
+
+        var byId = document.getElementById(key);
+        if (byId && key !== "cart-drawer") { byId.innerHTML = html; continue; }
+      }
+    }
+
+    function openCartDrawer() {
+      var cd = document.querySelector("cart-drawer");
+      if (cd && typeof cd.open === "function") { cd.open(); return; }
+
+      var btn =
+        document.querySelector('[data-cart-drawer-toggle]') ||
+        document.querySelector('[data-cart-drawer-open]') ||
+        document.querySelector('[aria-controls*="CartDrawer"]') ||
+        document.querySelector('[href="/cart"]') ||
+        document.querySelector('[href*="/cart"]');
+
+      if (btn) btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    }
+
+    async function addToCartAndRefresh(variantId) {
+      var sections = getCartSectionIds();
+
+      var fd = new FormData();
+      fd.append("id", String(variantId));
+      fd.append("quantity", "1");
+      fd.append("sections", sections.join(","));
+      fd.append("sections_url", window.location.pathname);
+
+      var r = await fetch("/cart/add.js", { method: "POST", body: fd, credentials: "same-origin" });
+      if (!r.ok) throw new Error("Add to cart failed");
+
+      var j = await r.json();
+
+      if (j && j.sections) {
+        applySections(j.sections);
+      } else {
+        var r2 = await fetch("/?sections=" + encodeURIComponent(sections.join(",")), { credentials: "same-origin" });
+        if (r2.ok) {
+          var sec = await r2.json();
+          applySections(sec);
+        }
+      }
+
+      try {
+        document.documentElement.dispatchEvent(new CustomEvent("cart:refresh"));
+        document.documentElement.dispatchEvent(new CustomEvent("cart:update"));
+      } catch(e) {}
+
+      openCartDrawer();
+    }
+
+    /* -----------------------
+       Product map from /products.json
+    ------------------------*/
+    async function fetchAllProductsMap() {
+      var map = new Map();
+      var page = 1;
+
+      while (page <= 10) {
+        var res = await fetch("/products.json?limit=250&page=" + page, { credentials: "same-origin" });
+        if (!res.ok) break;
+
+        var data = await res.json();
+        var products = (data && data.products) ? data.products : [];
+        if (!products.length) break;
+
+        for (var i = 0; i < products.length; i++) {
+          map.set(String(products[i].id), products[i]);
+        }
+
+        if (products.length < 250) break;
+        page++;
+      }
+      return map;
+    }
+
+    /* -----------------------
+       Render
+    ------------------------*/
+    function ensureEmptyState() {
+      var cards = grid.querySelectorAll(".wl-card");
+      if (!cards.length) {
+        grid.innerHTML = '<p class="wl-empty">No items in wishlist.</p>';
+      }
+    }
+
+    function render(cards) {
+      if (!cards || !cards.length) {
+        grid.innerHTML = '<p class="wl-empty">No items in wishlist.</p>';
+        return;
+      }
+
+      var html = "";
+      for (var i = 0; i < cards.length; i++) {
+        var c = cards[i];
+        var title = esc(c.title || ("Variant " + c.variantId));
+        var url = c.url ? esc(c.url) : "#";
+        var img = c.image ? esc(c.image) : "";
+        var price = (c.priceCents != null) ? moneyFromCents(c.priceCents) : "";
+        var key = esc(String(c.productId) + ":" + String(c.variantId));
+
+        html += `
+          <div class="wl-card" data-wl-card data-wl-key="${key}">
+            <a class="wl-media" href="${url}">
+              ${img ? `<img class="wl-img" src="${img}" alt="${title}" loading="lazy">`
+                    : `<div class="wl-img wl-img--ph">♡</div>`}
+            </a>
+
+            <div class="wl-body">
+              <div class="wl-name"><a href="${url}">${title}</a></div>
+              ${price ? `<div class="wl-price">${price}</div>` : ``}
+
+              <div class="wl-actions">
+                <button type="button" class="wl-add" data-wl-add data-variant-id="${esc(c.variantId)}">Add to Cart</button>
+                <button type="button" class="wl-remove" data-wl-remove data-product-id="${esc(c.productId)}" data-variant-id="${esc(c.variantId)}">Remove</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      grid.innerHTML = html;
+    }
+
+    /* -----------------------
+       Choose correct ID if merge failed
+    ------------------------*/
+    async function resolveActiveCustomerId() {
+      if (!loggedInId) {
+        activeCustomerId = String(guestId);
+        return;
+      }
+
+      var loggedItems = await apiListFor(String(loggedInId));
+      if (loggedItems && loggedItems.length) {
+        activeCustomerId = String(loggedInId);
+        return;
+      }
+
+      var guestItems = await apiListFor(String(guestId));
+      if (guestItems && guestItems.length) {
+        activeCustomerId = String(guestId);
+        return;
+      }
+
+      activeCustomerId = String(loggedInId);
+    }
+
+    async function load() {
+      grid.innerHTML = '<p class="wl-loading">Loading…</p>';
+
+      var items = await apiListFor(activeCustomerId);
+      if (!items.length) { render([]); return; }
+
+      var productMap = await fetchAllProductsMap();
+
+      var cards = [];
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+
+        var productId = String(it.productId || "");
+        var variantId = String(it.variantId || "");
+        var p = productMap.get(productId);
+
+        var title = it.productTitle || null;
+        var url = it.productUrl || null;
+        var image = it.imageUrl || null;
+
+        var priceCents = (it.price != null) ? toCents(it.price) : null;
+
+        if (p) {
+          title = title || p.title;
+          url = url || (p.handle ? "/products/" + p.handle : null);
+
+          var v = null;
+          if (p.variants && p.variants.length) {
+            for (var j = 0; j < p.variants.length; j++) {
+              if (String(p.variants[j].id) === variantId) { v = p.variants[j]; break; }
+            }
+          }
+
+          if (!image) image = pickImage(p, v);
+          if (priceCents == null && v && v.price != null) priceCents = toCents(v.price);
+        }
+
+        if (!url) url = "#";
+        if (!image) image = "";
+
+        cards.push({
+          productId: productId,
+          variantId: variantId,
+          title: title,
+          url: url,
+          image: image,
+          priceCents: priceCents
+        });
+      }
+
+      render(cards);
+    }
+
+    /* -----------------------
+       Smooth remove
+    ------------------------*/
+    function animateRemoveCard(cardEl) {
+      if (!cardEl) return;
+      var h = cardEl.offsetHeight;
+
+      cardEl.style.height = h + "px";
+      cardEl.style.transition = "height 220ms ease, opacity 180ms ease, transform 220ms ease, margin 220ms ease";
+      cardEl.style.overflow = "hidden";
+
+      requestAnimationFrame(function () {
+        cardEl.style.opacity = "0";
+        cardEl.style.transform = "scale(0.98)";
+        cardEl.style.marginTop = "0";
+        cardEl.style.marginBottom = "0";
+        cardEl.style.height = "0px";
+        setTimeout(function () {
+          if (cardEl && cardEl.parentNode) cardEl.parentNode.removeChild(cardEl);
+          ensureEmptyState();
+        }, 240);
+      });
+    }
+
+    /* -----------------------
+       Click handlers
+    ------------------------*/
+    document.addEventListener("click", async function (e) {
+      var addBtn = e.target.closest("[data-wl-add]");
+      if (addBtn) {
+        e.preventDefault();
+        var vid = addBtn.getAttribute("data-variant-id");
+        if (!vid) return;
+
+        if (addBtn.dataset.loading === "1") return;
+        addBtn.dataset.loading = "1";
+        addBtn.disabled = true;
+
+        var old = addBtn.textContent;
+        addBtn.textContent = "Adding…";
+
+        try {
+          await addToCartAndRefresh(vid);
+          addBtn.textContent = "Added ✓";
+          showToast("Added to cart ✓");
+          setTimeout(function(){ addBtn.textContent = old; }, 900);
+        } catch (err) {
+          console.error(err);
+          addBtn.textContent = "Error";
+          showToast("Couldn’t add to cart");
+          setTimeout(function(){ addBtn.textContent = old; }, 1100);
+        } finally {
+          addBtn.disabled = false;
+          addBtn.dataset.loading = "0";
+        }
+        return;
+      }
+
+      var rmBtn = e.target.closest("[data-wl-remove]");
+      if (rmBtn) {
+        e.preventDefault();
+
+        /* ✅ FIXED: cleanly read ids */
+        var productId = rmBtn.getAttribute("data-product-id");
+        var variantId = rmBtn.getAttribute("data-variant-id");
+        if (!productId || !variantId) return;
+
+        if (rmBtn.dataset.loading === "1") return;
+        rmBtn.dataset.loading = "1";
+
+        var card = rmBtn.closest(".wl-card");
+        animateRemoveCard(card);
+        showToast("Removed from wishlist");
+
+        try {
+          var resp = await apiToggleFor(activeCustomerId, productId, variantId);
+
+          if (!resp || resp.ok === false) {
+            await load();
+          }
+
+          if (window.WishlistUI && window.WishlistUI.sync) {
+            window.WishlistUI.sync();
+          }
+        } catch (err) {
+          console.error(err);
+          await load();
+        } finally {
+          rmBtn.dataset.loading = "0";
+        }
+      }
+    });
+
+    /* -----------------------
+       INIT
+    ------------------------*/
+    (async function () {
+      await mergeIfNeeded();
+      await resolveActiveCustomerId();
+      await load();
+    })();
+
+  })();
+  </script>
+
+  <style>
+    .wl-page{ max-width:1100px; margin:40px auto; padding:0 16px; }
+    .wl-title{ font-size:32px; font-weight:800; margin:0 0 14px; }
+    .wl-guest-msg{ margin:0 0 18px; font-size:14px; color:#555; }
+    .wl-guest-msg a{ color:#000; text-decoration:underline; }
+
+    .wl-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:16px; }
+    .wl-loading,.wl-empty{ opacity:.75; margin:10px 0; }
+
+    .wl-card{ border:1px solid #eee; border-radius:16px; background:#fff; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,.04); }
+    .wl-media{ display:block; text-decoration:none; color:inherit; }
+    .wl-img{ width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#f6f6f6; }
+    .wl-img--ph{ display:flex; align-items:center; justify-content:center; font-size:46px; color:#ff2ea1; }
+
+    .wl-body{ padding:12px; }
+    .wl-name{ font-weight:900; margin:0 0 6px; font-size:16px; }
+    .wl-name a{ color:inherit; text-decoration:none; }
+    .wl-name a:hover{ text-decoration:underline; }
+
+    .wl-price{ opacity:.75; margin:0 0 10px; font-weight:700; }
+
+    .wl-actions{ display:flex; gap:10px; }
+    .wl-actions button{
+      flex:1;
+      padding:10px;
+      border-radius:12px;
+      border:1px solid #ddd;
+      background:#fff;
+      cursor:pointer;
+      font-weight:800;
+    }
+    .wl-add{ border-color:#ffd1e8; background:linear-gradient(180deg,#fff,#fff7fb); }
+    .wl-add:hover{ border-color:#ff2ea1; }
+    .wl-remove:hover{ border-color:#000; }
+    .wl-actions button:disabled{ opacity:.6; cursor:not-allowed; }
+
+    .wl-toast{
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      background: #111;
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 999px;
+      font-weight: 800;
+      font-size: 13px;
+      z-index: 9999;
+      box-shadow: 0 10px 24px rgba(0,0,0,.25);
+      opacity: 0;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+    .wl-toast.is-show{ opacity: 1; transform: translateX(-50%) translateY(-2px); }
+    .wl-toast.is-hide{ opacity: 0; transform: translateX(-50%) translateY(2px); }
+  </style>
+
+  {% schema %}
+  {
+    "name": "Wishlist Page",
+    "target": "section",
+    "settings": []
+  }
+  {% endschema %}
+</div>

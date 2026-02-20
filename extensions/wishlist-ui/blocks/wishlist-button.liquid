@@ -1,0 +1,84 @@
+{% comment %}
+Wishlist button block (Product page)
+
+IMPORTANT CHANGE:
+- We DO NOT hard-hide the UI anymore.
+- If billing is not active, we show but disable (UX-friendly).
+- We load wishlist.js only if it isn't already loaded (embed may load it).
+{% endcomment %}
+
+<style>
+  /* Always show wishlist UI */
+  .wishlist-ui { display: block !important; }
+
+  /* If not paid/active: show but disable */
+  html:not(.wishlist-paid) .wishlist-ui{
+    opacity: .45;
+    pointer-events: none;
+    filter: grayscale(1);
+  }
+</style>
+
+<script>
+  window.wishlistCustomerId = {{ customer.id | json }};
+</script>
+
+<div class="wishlist-ui wishlist-ui--product-button">
+  {% assign v = product.selected_or_first_available_variant %}
+
+  <button
+    type="button"
+    class="wl-btn"
+    data-wl-toggle
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ v.id }}"
+  >
+    <span class="wl-heart" aria-hidden="true">❤</span>
+    <span class="wl-text" data-wl-label>Wishlist</span>
+  </button>
+</div>
+
+<style>
+  .wl-btn{
+    display:inline-flex; align-items:center; gap:10px;
+    border:1px solid #e9e9e9; background:#fff;
+    border-radius:999px; padding:10px 14px;
+    font-weight:700; cursor:pointer;
+    transition: transform .12s ease;
+  }
+  .wl-btn:hover{ transform: translateY(-1px); }
+  .wl-heart{
+    font-size:18px;
+    color:#ff2ea1;
+    line-height:1;
+  }
+  .wl-btn.is-active .wl-heart{ color:#ff1f8f; }
+</style>
+
+{% comment %}
+Load wishlist.js only if the embed hasn't already loaded it.
+Also use defer to avoid parser-blocking warning.
+{% endcomment %}
+<script>
+  (function(){
+    var alreadyLoaded =
+      (typeof window.WishlistUI !== "undefined") ||
+      document.querySelector('script[data-wl-script="1"]');
+
+    if (alreadyLoaded) return;
+
+    var s = document.createElement("script");
+    s.src = {{ 'wishlist.js' | asset_url | json }};
+    s.defer = true;
+    s.setAttribute("data-wl-script","1");
+    document.head.appendChild(s);
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Wishlist Button",
+  "target": "section",
+  "settings": []
+}
+{% endschema %}

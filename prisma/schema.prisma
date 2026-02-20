@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+/* =========================================================
+   Shopify Session (DO NOT MODIFY – Required by Shopify)
+========================================================= */
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        String?   // safer than BigInt for SQLite
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+/* =========================================================
+   Wishlist Items
+   customerId stores:
+   - "guest:<uuid>"  OR
+   - "<shopify customer.id>"
+========================================================= */
+model WishlistItem {
+  id           String   @id @default(cuid())
+  shop         String
+  customerId   String
+  productId    String
+  variantId    String
+
+  productTitle String?
+  productUrl   String?
+  imageUrl     String?
+
+  price        String?  // "22.00"
+  currency     String?  // "USD"
+
+  createdAt    DateTime @default(now())
+
+  @@index([shop, customerId])
+  @@index([shop, variantId])
+  @@unique([shop, customerId, variantId])
+}
+
+/* =========================================================
+   Wishlist Storefront Toggle (ON/OFF switch)
+========================================================= */
+model WishlistSetting {
+  id        Int      @id @default(autoincrement())
+  shop      String   @unique
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("WishlistSettings")
+}
+
+/* =========================================================
+   OPTIONAL: App-level shop settings (only if needed)
+   If you are NOT using this, you can remove it safely.
+========================================================= */
+model ShopSettings {
+  id        String   @id @default(cuid())
+  shop      String   @unique
+  appEnabled Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
