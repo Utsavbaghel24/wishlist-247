@@ -1,6 +1,6 @@
 client_id = "2b8e6fdb5104ecbbfb5820eb32e312fa"
 name = "Wishlist-247"
-application_url = "https://motor-give-medium-makers.trycloudflare.com"
+application_url = "https://wishlist-247.onrender.com"
 embedded = true
 
 [build]
@@ -24,12 +24,12 @@ use_legacy_install_flow = false
 
 [auth]
 redirect_urls = [
-  "https://motor-give-medium-makers.trycloudflare.com/api/auth",
-  "https://motor-give-medium-makers.trycloudflare.com/api/auth/callback"
+  "https://wishlist-247.onrender.com/api/auth",
+  "https://wishlist-247.onrender.com/api/auth/callback"
 ]
 
 [app_proxy]
-url = "https://motor-give-medium-makers.trycloudflare.com/proxy"
+url = "https://wishlist-247.onrender.com/proxy"
 subpath = "wishlist"
 prefix = "apps"
 
