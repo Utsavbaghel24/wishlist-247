@@ -12,7 +12,7 @@ import prisma from "./db.server";
 const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
 
 if (!appUrl) {
-    throw new Error("Missing SHOPIFY_APP_URL in environment variables");
+    throw new Error("Missing SHOPIFY_APP_URL or APP_URL in environment variables");
 }
 
 const scopes = (process.env.SCOPES || "")
@@ -23,12 +23,15 @@ const scopes = (process.env.SCOPES || "")
 const shopify = shopifyApp({
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey: process.env.SHOPIFY_API_SECRET,
-    apiVersion: ApiVersion.April26, // ✅ MATCHES 2026-04
+    apiVersion: ApiVersion.April26,
     scopes,
     appUrl,
     authPathPrefix: "/auth",
     sessionStorage: new PrismaSessionStorage(prisma),
-    distribution: AppDistribution.AppStore,
+
+    // ✅ IMPORTANT — use Custom for dev apps
+    distribution: AppDistribution.Custom,
+
     future: {
         unstable_newEmbeddedAuthStrategy: true,
         expiringOfflineAccessTokens: true,
@@ -37,10 +40,9 @@ const shopify = shopifyApp({
 
 export default shopify;
 
-export const apiVersion = ApiVersion.April26; // ✅ MATCHES 2026-04
-export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const authenticate = shopify.authenticate;
-export const unauthenticated = shopify.unauthenticated;
 export const login = shopify.login;
+export const unauthenticated = shopify.unauthenticated;
 export const registerWebhooks = shopify.registerWebhooks;
+export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
 export const sessionStorage = shopify.sessionStorage;
