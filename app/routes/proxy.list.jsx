@@ -28,26 +28,34 @@ function timingSafeEqualHex(a, b) {
 }
 
 /**
- * Proper Shopify App Proxy signature verification
+ * ✅ Shopify App Proxy signature verification (RAW querystring-safe)
+ * Shopify signs the query using encoded values (e.g., %2Fapps%2Fwishlist)
+ * URLSearchParams decodes them, which breaks verification.
+ * So we build the message from the RAW querystring.
  */
 function verifyProxySignature(requestUrl) {
   const u = new URL(requestUrl);
-  const params = u.searchParams;
+  const raw = u.search.startsWith("?") ? u.search.slice(1) : u.search;
 
-  const signature = params.get("signature");
+  // parse raw key/value pairs WITHOUT decoding
+  const pairs = raw
+    .split("&")
+    .filter(Boolean)
+    .map((kv) => {
+      const idx = kv.indexOf("=");
+      if (idx === -1) return [kv, ""];
+      return [kv.slice(0, idx), kv.slice(idx + 1)];
+    });
 
-  // In production, signature must exist
+  const sigPair = pairs.find(([k]) => k === "signature");
+  const signature = sigPair ? sigPair[1] : "";
+
   if (!signature) return false;
 
-  const entries = [];
-  for (const [k, v] of params.entries()) {
-    if (k === "signature") continue;
-    entries.push([k, v]);
-  }
+  const filtered = pairs.filter(([k]) => k !== "signature");
+  filtered.sort(([a], [b]) => a.localeCompare(b));
 
-  entries.sort(([a], [b]) => a.localeCompare(b));
-
-  const message = entries.map(([k, v]) => `${k}=${v}`).join("");
+  const message = filtered.map(([k, v]) => `${k}=${v}`).join("");
 
   const secret = process.env.SHOPIFY_API_SECRET;
   if (!secret) return false;
@@ -81,13 +89,13 @@ export async function loader({ request }) {
       return json({ ok: false, items: [], error: "Invalid signature" }, 401);
     }
 
+    // 2️⃣ Identify shop
     const shop = getShop(request);
-
     if (!shop) {
       return json({ ok: false, items: [], error: "Missing shop" }, 200);
     }
 
-    // 2️⃣ Check if wishlist feature enabled
+    // 3️⃣ Optional enabled check (fail-open)
     let enabled = true;
     try {
       const setting = await prisma.wishlistSetting.findUnique({
@@ -107,7 +115,7 @@ export async function loader({ request }) {
       );
     }
 
-    // 3️⃣ Get customerId
+    // 4️⃣ customerId
     const url = new URL(request.url);
     const customerId = String(url.searchParams.get("customerId") || "guest");
 
@@ -115,7 +123,7 @@ export async function loader({ request }) {
       return json({ ok: true, items: [] }, 200);
     }
 
-    // 4️⃣ Fetch wishlist items
+    // 5️⃣ fetch items
     const items = await prisma.wishlistItem.findMany({
       where: { shop, customerId },
       orderBy: { createdAt: "desc" },
