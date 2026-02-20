@@ -13,9 +13,6 @@ function json(data, status = 200, headers = {}) {
   });
 }
 
-/**
- * Hex-safe timing comparison
- */
 function timingSafeEqualHex(a, b) {
   try {
     const ab = Buffer.from(String(a), "hex");
@@ -27,18 +24,42 @@ function timingSafeEqualHex(a, b) {
   }
 }
 
+function hmacHex(secret, msg) {
+  return crypto.createHmac("sha256", secret).update(msg).digest("hex");
+}
+
 /**
- * ✅ Shopify App Proxy signature verification (RAW querystring-safe)
- * Shopify signs the query using encoded values (e.g., %2Fapps%2Fwishlist)
- * URLSearchParams decodes them, which breaks verification.
- * So we build the message from the RAW querystring.
+ * ✅ App Proxy signature verification (tries BOTH decoded + raw styles)
+ * Accept if either digest matches Shopify's `signature`.
  */
 function verifyProxySignature(requestUrl) {
+  const secret = process.env.SHOPIFY_API_SECRET;
+  if (!secret) return { ok: false, reason: "Missing SHOPIFY_API_SECRET" };
+
   const u = new URL(requestUrl);
+  const params = u.searchParams;
+
+  const signature = params.get("signature");
+  if (!signature) return { ok: false, reason: "Missing signature" };
+
+  // 1) DECODED message (URLSearchParams gives decoded values)
+  const decodedEntries = [];
+  for (const [k, v] of params.entries()) {
+    if (k === "signature") continue;
+    decodedEntries.push([k, v]);
+  }
+  decodedEntries.sort(([a], [b]) => a.localeCompare(b));
+  const decodedMsg = decodedEntries.map(([k, v]) => `${k}=${v}`).join("");
+  const decodedDigest = hmacHex(secret, decodedMsg);
+
+  if (timingSafeEqualHex(decodedDigest, signature)) {
+    return { ok: true, mode: "decoded" };
+  }
+
+  // 2) RAW message (use raw querystring, keep values encoded)
   const raw = u.search.startsWith("?") ? u.search.slice(1) : u.search;
 
-  // parse raw key/value pairs WITHOUT decoding
-  const pairs = raw
+  const rawPairs = raw
     .split("&")
     .filter(Boolean)
     .map((kv) => {
@@ -47,30 +68,29 @@ function verifyProxySignature(requestUrl) {
       return [kv.slice(0, idx), kv.slice(idx + 1)];
     });
 
-  const sigPair = pairs.find(([k]) => k === "signature");
-  const signature = sigPair ? sigPair[1] : "";
+  const rawFiltered = rawPairs.filter(([k]) => k !== "signature");
+  rawFiltered.sort(([a], [b]) => a.localeCompare(b));
+  const rawMsg = rawFiltered.map(([k, v]) => `${k}=${v}`).join("");
+  const rawDigest = hmacHex(secret, rawMsg);
 
-  if (!signature) return false;
+  if (timingSafeEqualHex(rawDigest, signature)) {
+    return { ok: true, mode: "raw" };
+  }
 
-  const filtered = pairs.filter(([k]) => k !== "signature");
-  filtered.sort(([a], [b]) => a.localeCompare(b));
-
-  const message = filtered.map(([k, v]) => `${k}=${v}`).join("");
-
-  const secret = process.env.SHOPIFY_API_SECRET;
-  if (!secret) return false;
-
-  const digest = crypto
-    .createHmac("sha256", secret)
-    .update(message)
-    .digest("hex");
-
-  return timingSafeEqualHex(digest, signature);
+  // If neither matched, return debug info (logged only)
+  return {
+    ok: false,
+    reason: "Signature mismatch",
+    debug: {
+      decodedMsg,
+      decodedDigest,
+      rawMsg,
+      rawDigest,
+      signature,
+    },
+  };
 }
 
-/**
- * Get shop safely from App Proxy request
- */
 function getShop(request) {
   const url = new URL(request.url);
   const qpShop = url.searchParams.get("shop");
@@ -84,18 +104,16 @@ function getShop(request) {
 
 export async function loader({ request }) {
   try {
-    // 1️⃣ Verify App Proxy signature
-    if (!verifyProxySignature(request.url)) {
+    const sig = verifyProxySignature(request.url);
+    if (!sig.ok) {
+      console.warn("proxy.list signature failed:", sig.reason, sig.debug || "");
       return json({ ok: false, items: [], error: "Invalid signature" }, 401);
     }
 
-    // 2️⃣ Identify shop
     const shop = getShop(request);
-    if (!shop) {
-      return json({ ok: false, items: [], error: "Missing shop" }, 200);
-    }
+    if (!shop) return json({ ok: false, items: [], error: "Missing shop" }, 200);
 
-    // 3️⃣ Optional enabled check (fail-open)
+    // Optional enabled gate (fail-open)
     let enabled = true;
     try {
       const setting = await prisma.wishlistSetting.findUnique({
@@ -105,7 +123,6 @@ export async function loader({ request }) {
       enabled = setting?.enabled ?? true;
     } catch (e) {
       console.warn("wishlistSetting lookup failed (fail-open):", e?.message);
-      enabled = true;
     }
 
     if (!enabled) {
@@ -115,15 +132,9 @@ export async function loader({ request }) {
       );
     }
 
-    // 4️⃣ customerId
     const url = new URL(request.url);
     const customerId = String(url.searchParams.get("customerId") || "guest");
 
-    if (!customerId) {
-      return json({ ok: true, items: [] }, 200);
-    }
-
-    // 5️⃣ fetch items
     const items = await prisma.wishlistItem.findMany({
       where: { shop, customerId },
       orderBy: { createdAt: "desc" },
