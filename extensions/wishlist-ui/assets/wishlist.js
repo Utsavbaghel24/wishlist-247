@@ -67,7 +67,12 @@
         if (label) label.textContent = active ? "Wishlisted" : "Wishlist";
     }
 
+
     function disableWishlistUI(reason) {
+
+        document.querySelectorAll(".wishlist-ui").forEach(el => {
+            el.classList.add("wl-disabled-ui");
+        });
         var btns = document.querySelectorAll("[data-wl-toggle]");
         for (var i = 0; i < btns.length; i++) {
             btns[i].disabled = true;
@@ -319,3 +324,6 @@
         getShop: getShopDomain,
     };
 })();
+
+console.log("Wishlist.js loaded ✅");
+window.WishlistUI = window.WishlistUI || { loaded: true };

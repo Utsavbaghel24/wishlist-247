@@ -12,11 +12,11 @@ IMPORTANT CHANGE:
   .wishlist-ui { display: block !important; }
 
   /* If not paid/active: show but disable */
-  html:not(.wishlist-paid) .wishlist-ui{
-    opacity: .45;
-    pointer-events: none;
-    filter: grayscale(1);
-  }
+.wishlist-ui.wl-disabled-ui{
+  opacity: .45;
+  pointer-events: none;
+  filter: grayscale(1);
+}
 </style>
 
 <script>
