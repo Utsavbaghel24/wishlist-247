@@ -23,7 +23,7 @@ const scopes = (process.env.SCOPES || "")
 const shopify = shopifyApp({
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey: process.env.SHOPIFY_API_SECRET,
-    apiVersion: ApiVersion.April26,
+    apiVersion: ApiVersion.January25,
     scopes,
     appUrl,
     authPathPrefix: "/auth",
