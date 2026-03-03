@@ -326,86 +326,35 @@ Use defer to avoid parser-blocking.
     }
 
     async function addToCartAndRefresh(variantId) {
-    /* ======================================================
-   CART DRAWER REFRESH (STABLE)
-   - Add to cart first
-   - Then fetch updated drawer sections from "/"
-   - Replace Shopify section wrappers (not cart-drawer innerHTML)
-====================================================== */
+      var sections = getCartSectionIds();
 
-function getCartSectionIds() {
-  // Dawn + most OS 2.0 themes
-  return ["cart-drawer", "cart-icon-bubble"];
-}
+      var fd = new FormData();
+      fd.append("id", String(variantId));
+      fd.append("quantity", "1");
+      fd.append("sections", sections.join(","));
+      fd.append("sections_url", window.location.pathname);
 
-async function fetchSectionsFromRoot(sectionIds) {
-  var url = "/?sections=" + encodeURIComponent(sectionIds.join(","));
-  var r = await fetch(url, { credentials: "same-origin", cache: "no-store" });
-  if (!r.ok) return null;
-  try { return await r.json(); } catch(e) { return null; }
-}
+      var r = await fetch("/cart/add.js", { method: "POST", body: fd, credentials: "same-origin" });
+      if (!r.ok) throw new Error("Add to cart failed");
 
-function replaceShopifySection(sectionId, html) {
-  // Shopify wraps sections like: <div id="shopify-section-cart-drawer">...</div>
-  var wrap = document.getElementById("shopify-section-" + sectionId);
-  if (wrap && typeof html === "string") {
-    wrap.innerHTML = html;
-    return true;
-  }
-  return false;
-}
+      var j = await r.json();
 
-function openCartDrawer() {
-  // After replacement, query again
-  var cd = document.querySelector("cart-drawer");
-  if (cd && typeof cd.open === "function") {
-    cd.open();
-    return;
-  }
+      if (j && j.sections) {
+        applySections(j.sections);
+      } else {
+        var r2 = await fetch("/?sections=" + encodeURIComponent(sections.join(",")), { credentials: "same-origin" });
+        if (r2.ok) {
+          var sec = await r2.json();
+          applySections(sec);
+        }
+      }
 
-  // fallback triggers (varies by theme)
-  var btn =
-    document.querySelector('[aria-controls="CartDrawer"]') ||
-    document.querySelector('[aria-controls*="CartDrawer"]') ||
-    document.querySelector('[data-cart-drawer-toggle]') ||
-    document.querySelector('[data-cart-drawer-open]');
+      try {
+        document.documentElement.dispatchEvent(new CustomEvent("cart:refresh"));
+        document.documentElement.dispatchEvent(new CustomEvent("cart:update"));
+      } catch(e) {}
 
-  if (btn) btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-}
-
-async function addToCartAndRefresh(variantId) {
-  // 1) Add to cart
-  var fd = new FormData();
-  fd.append("id", String(variantId));
-  fd.append("quantity", "1");
-
-  var r = await fetch("/cart/add.js", {
-    method: "POST",
-    body: fd,
-    credentials: "same-origin"
-  });
-
-  if (!r.ok) throw new Error("Add to cart failed");
-
-  // 2) Fetch fresh drawer HTML from root sections
-  var sections = getCartSectionIds();
-  var sec = await fetchSectionsFromRoot(sections);
-
-  if (sec) {
-    // Replace only safe wrappers
-    if (sec["cart-drawer"]) replaceShopifySection("cart-drawer", sec["cart-drawer"]);
-    if (sec["cart-icon-bubble"]) replaceShopifySection("cart-icon-bubble", sec["cart-icon-bubble"]);
-  }
-
-  // 3) Let theme listeners react (optional)
-  try {
-    document.documentElement.dispatchEvent(new CustomEvent("cart:refresh"));
-    document.documentElement.dispatchEvent(new CustomEvent("cart:update"));
-  } catch(e) {}
-
-  // 4) Open drawer
-  openCartDrawer();
-}
+      openCartDrawer();
     }
 
     /* -----------------------
