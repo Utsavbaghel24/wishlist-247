@@ -332,7 +332,8 @@ Use defer to avoid parser-blocking.
       fd.append("id", String(variantId));
       fd.append("quantity", "1");
       fd.append("sections", sections.join(","));
-      fd.append("sections_url", window.location.pathname);
+      /* ✅ FIX: render cart drawer using /cart context, not /pages/wishlist */
+      fd.append("sections_url", "/cart");
 
       var r = await fetch("/cart/add.js", { method: "POST", body: fd, credentials: "same-origin" });
       if (!r.ok) throw new Error("Add to cart failed");
@@ -569,7 +570,6 @@ Use defer to avoid parser-blocking.
       if (rmBtn) {
         e.preventDefault();
 
-        /* ✅ FIXED: cleanly read ids */
         var productId = rmBtn.getAttribute("data-product-id");
         var variantId = rmBtn.getAttribute("data-variant-id");
         if (!productId || !variantId) return;
