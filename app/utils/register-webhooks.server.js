@@ -11,7 +11,6 @@ import { authenticate } from "../shopify.server";
  *  - SHOP_REDACT
  */
 export async function registerRequiredWebhooks(request) {
-    // Authenticate and get Admin API + session
     const { admin, session } = await authenticate.admin(request);
 
     if (!admin || !session) {
@@ -20,21 +19,29 @@ export async function registerRequiredWebhooks(request) {
     }
 
     const shop = session.shop;
+    const baseUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
 
-    // Your webhook endpoint (must be HTTPS in production)
-    const endpoint = `${process.env.SHOPIFY_APP_URL}/webhooks`;
-
-    if (!process.env.SHOPIFY_APP_URL) {
-        console.error("❌ SHOPIFY_APP_URL missing in .env");
+    if (!baseUrl) {
+        console.error("❌ Missing SHOPIFY_APP_URL or APP_URL");
         return { ok: false };
     }
 
-    // Required webhook topics
-    const topics = [
-        "APP_UNINSTALLED",
-        "CUSTOMERS_DATA_REQUEST",
-        "CUSTOMERS_REDACT",
-        "SHOP_REDACT",
+    const webhookTargets = [{
+            topic: "APP_UNINSTALLED",
+            callbackUrl: `${baseUrl}/webhooks/app/uninstalled`,
+        },
+        {
+            topic: "CUSTOMERS_DATA_REQUEST",
+            callbackUrl: `${baseUrl}/webhooks`,
+        },
+        {
+            topic: "CUSTOMERS_REDACT",
+            callbackUrl: `${baseUrl}/webhooks`,
+        },
+        {
+            topic: "SHOP_REDACT",
+            callbackUrl: `${baseUrl}/webhooks`,
+        },
     ];
 
     const mutation = `
@@ -58,30 +65,27 @@ export async function registerRequiredWebhooks(request) {
     }
   `;
 
-    for (const topic of topics) {
+    for (const item of webhookTargets) {
         try {
             const response = await admin.graphql(mutation, {
                 variables: {
-                    topic,
-                    callbackUrl: endpoint,
+                    topic: item.topic,
+                    callbackUrl: item.callbackUrl,
                 },
             });
+
             const data = await response.json();
 
             const errors =
-                data &&
-                data.data &&
-                data.data.webhookSubscriptionCreate &&
-                data.data.webhookSubscriptionCreate.userErrors ?
-                data.data.webhookSubscriptionCreate.userErrors :
-                [];
+                data ? .data ? .webhookSubscriptionCreate ? .userErrors || [];
+
             if (errors.length) {
-                console.warn("⚠️ Webhook create errors:", topic, errors);
+                console.warn("⚠️ Webhook create errors:", item.topic, errors);
             } else {
-                console.log("✅ Webhook registered:", topic, shop);
+                console.log("✅ Webhook registered:", item.topic, shop);
             }
         } catch (err) {
-            console.error("🔥 Failed to register webhook:", topic, err);
+            console.error("🔥 Failed to register webhook:", item.topic, err);
         }
     }
 
