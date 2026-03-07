@@ -77,7 +77,12 @@ export async function registerRequiredWebhooks(request) {
             const data = await response.json();
 
             const errors =
-                data ? .data ? .webhookSubscriptionCreate ? .userErrors || [];
+                data &&
+                data.data &&
+                data.data.webhookSubscriptionCreate &&
+                data.data.webhookSubscriptionCreate.userErrors ?
+                data.data.webhookSubscriptionCreate.userErrors :
+                [];
 
             if (errors.length) {
                 console.warn("⚠️ Webhook create errors:", item.topic, errors);
