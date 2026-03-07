@@ -31,44 +31,33 @@ function json(data, init) {
 }
 
 export async function loader({ request }) {
-  try {
-    const { billing, session } = await authenticate.admin(request);
+  const { billing, session } = await authenticate.admin(request);
 
-    const billingDisabled =
-      process.env.BILLING_DISABLED === "true" ||
-      process.env.BYPASS_BILLING === "1";
+  const billingDisabled =
+    process.env.BILLING_DISABLED === "true" ||
+    process.env.BYPASS_BILLING === "1";
 
-    let isActive = false;
-    let subscriptions = [];
+  let isActive = false;
+  let subscriptions = [];
 
-    if (billingDisabled) {
-      isActive = true;
-    } else {
-      const billingStatus = await billing.check({
-        plans: [WISHLIST_PLAN],
-        isTest: true,
-      });
-
-      isActive = billingStatus.hasActivePayment;
-      subscriptions = billingStatus.appSubscriptions || [];
-    }
-
-    return json({
-      plan: PLAN,
-      isActive,
-      subscriptions,
-      shop: session.shop,
+  if (billingDisabled) {
+    isActive = true;
+  } else {
+    const billingStatus = await billing.check({
+      plans: [WISHLIST_PLAN],
+      isTest: true,
     });
-  } catch (error) {
-    console.error("APP PRICING LOADER ERROR:", error);
-    return json(
-      {
-        ok: false,
-        error: error?.message || "Pricing loader failed",
-      },
-      { status: 500 },
-    );
+
+    isActive = billingStatus.hasActivePayment;
+    subscriptions = billingStatus.appSubscriptions || [];
   }
+
+  return json({
+    plan: PLAN,
+    isActive,
+    subscriptions,
+    shop: session.shop,
+  });
 }
 
 export async function action({ request }) {
@@ -100,16 +89,11 @@ export async function action({ request }) {
     );
   }
 
-  const returnUrl = `${appUrl}/app/settings`;
-
-  // IMPORTANT:
-  // Do NOT wrap this in try/catch.
-  // Shopify returns a redirect Response here and it must pass through.
   return billing.request({
     plan: WISHLIST_PLAN,
     isTest: true,
     trialDays: PLAN.trialDays,
-    returnUrl,
+    returnUrl: `${appUrl}/app/settings`,
   });
 }
 
@@ -171,7 +155,7 @@ export default function Pricing() {
                   Subscription Active
                 </Button>
               ) : (
-                <Form method="post">
+                <Form method="post" reloadDocument>
                   <Button submit variant="primary" fullWidth>
                     Start {plan.trialDays}-Day Free Trial
                   </Button>
