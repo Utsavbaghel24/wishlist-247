@@ -16,7 +16,7 @@ import { authenticate, WISHLIST_PLAN } from "../shopify.server";
 
 const PLAN = {
   name: "Wishlist Pro",
-  price: 1,
+  price: 150,
   trialDays: 7,
 };
 

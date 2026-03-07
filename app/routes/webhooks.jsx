@@ -7,12 +7,12 @@ function ok(status = 200) {
 }
 
 async function safeJson(request) {
-  const raw = await request.text(); // IMPORTANT: raw body for HMAC verification
+  const raw = await request.text();
   let json = null;
 
   try {
     json = JSON.parse(raw);
-  } catch (e) {
+  } catch (_) {
     json = null;
   }
 
@@ -22,12 +22,10 @@ async function safeJson(request) {
 async function purgeShopData(shop) {
   if (!shop) return;
 
-  // Delete wishlist data
   await prisma.wishlistItem.deleteMany({
     where: { shop },
   });
 
-  // Delete settings tables (optional but recommended)
   try {
     await prisma.wishlistSetting.deleteMany({
       where: { shop },
@@ -40,14 +38,12 @@ async function purgeShopData(shop) {
     });
   } catch (_) {}
 
-  // Delete Shopify sessions (important)
   await prisma.session.deleteMany({
     where: { shop },
   });
 }
 
 export async function action({ request }) {
-  // Shopify sends POST webhooks
   if (request.method !== "POST") {
     return ok(405);
   }
@@ -64,7 +60,6 @@ export async function action({ request }) {
 
   const { raw, json } = await safeJson(request);
 
-  // Verify webhook authenticity
   const isValid = verifyShopifyWebhook(request, raw);
   if (!isValid) {
     console.error("Webhook HMAC verification failed", { topic, shop });
@@ -72,20 +67,18 @@ export async function action({ request }) {
   }
 
   try {
-    // 1) APP UNINSTALLED
+    // Keep this too, in case any webhook is still pointed to /webhooks
     if (topic === "app/uninstalled") {
       console.log("APP_UNINSTALLED received for", shop);
       await purgeShopData(shop);
       return ok(200);
     }
 
-    // 2) GDPR: CUSTOMER DATA REQUEST
     if (topic === "customers/data_request") {
       console.log("GDPR customers/data_request", { shop, payload: json });
       return ok(200);
     }
 
-    // 3) GDPR: CUSTOMER REDACT
     if (topic === "customers/redact") {
       try {
         const customerId = json?.customer?.id ? String(json.customer.id) : null;
@@ -103,14 +96,12 @@ export async function action({ request }) {
       return ok(200);
     }
 
-    // 4) GDPR: SHOP REDACT
     if (topic === "shop/redact") {
       console.log("GDPR shop/redact", { shop });
       await purgeShopData(shop);
       return ok(200);
     }
 
-    // Unknown webhook topics should still return 200 to avoid retries
     console.log("Webhook topic ignored:", topic, "shop:", shop);
     return ok(200);
   } catch (err) {

@@ -6,20 +6,25 @@ export function verifyShopifyWebhook(request, rawBody) {
         request.headers.get("x-shopify-hmac-sha256") ||
         request.headers.get("X-Shopify-Hmac-Sha256");
 
-    if (!hmacHeader) return false;
+    if (!hmacHeader || !rawBody) return false;
 
     const secret = process.env.SHOPIFY_API_SECRET;
-    if (!secret) return false;
+    if (!secret) {
+        console.error("Missing SHOPIFY_API_SECRET");
+        return false;
+    }
 
     const digest = crypto
         .createHmac("sha256", secret)
         .update(rawBody, "utf8")
         .digest("base64");
 
-    // Timing safe compare
-    const a = Buffer.from(digest, "utf8");
-    const b = Buffer.from(String(hmacHeader), "utf8");
-    if (a.length !== b.length) return false;
-
-    return crypto.timingSafeEqual(a, b);
+    try {
+        return crypto.timingSafeEqual(
+            Buffer.from(digest, "utf8"),
+            Buffer.from(String(hmacHeader), "utf8"),
+        );
+    } catch {
+        return false;
+    }
 }
