@@ -4,6 +4,7 @@ import "@shopify/shopify-app-react-router/adapters/node";
 import {
     ApiVersion,
     AppDistribution,
+    BillingInterval,
     shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
@@ -20,6 +21,8 @@ const scopes = (process.env.SCOPES || "")
     .map((s) => s.trim())
     .filter(Boolean);
 
+export const WISHLIST_PLAN = "Wishlist Pro";
+
 const shopify = shopifyApp({
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey: process.env.SHOPIFY_API_SECRET,
@@ -29,12 +32,22 @@ const shopify = shopifyApp({
     authPathPrefix: "/auth",
     sessionStorage: new PrismaSessionStorage(prisma),
 
-    // ✅ IMPORTANT — use Custom for dev apps
+    // Keep this as-is for your current dev/testing setup.
     distribution: AppDistribution.Custom,
 
     future: {
         unstable_newEmbeddedAuthStrategy: true,
         expiringOfflineAccessTokens: true,
+    },
+
+    billing: {
+        [WISHLIST_PLAN]: {
+            lineItems: [{
+                amount: 0,
+                currencyCode: "USD",
+                interval: BillingInterval.Every30Days,
+            }, ],
+        },
     },
 });
 

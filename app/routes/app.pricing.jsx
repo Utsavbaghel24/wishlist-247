@@ -1,6 +1,6 @@
 // app/routes/app.pricing.jsx
-import { useEffect } from "react";
-import { useFetcher, useLoaderData } from "react-router";
+
+import { Form, useLoaderData } from "react-router";
 import {
   Page,
   Layout,
@@ -13,98 +13,107 @@ import {
   Badge,
 } from "@shopify/polaris";
 
-import { WISHLIST_PLAN } from "../billing.plan";
-import {
-  hasActiveWishlistSubscription,
-  startWishlistSubscription,
-} from "../billing.server";
-import { authenticate } from "../shopify.server";
+import { authenticate, WISHLIST_PLAN } from "../shopify.server";
 
-/* ===============================
-   LOADER (SERVER)
-================================ */
-export async function loader({ request }) {
-  const { admin, session } = await authenticate.admin(request);
+const PLAN = {
+  name: "Wishlist Pro",
+  price: 0,
+  trialDays: 7,
+};
 
-  const billingDisabled =
-    process.env.BILLING_DISABLED === "true" ||
-    process.env.BYPASS_BILLING === "1";
-
-  const isActive = billingDisabled ? true : await hasActiveWishlistSubscription(admin);
-
-  return new Response(
-    JSON.stringify({
-      plan: WISHLIST_PLAN,
-      isActive,
-      shop: session.shop,
-    }),
-    { headers: { "Content-Type": "application/json" } }
-  );
+function json(data, init) {
+  return new Response(JSON.stringify(data), {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
 }
 
 /* ===============================
-   ACTION (SERVER)
+   LOADER
 ================================ */
-export async function action({ request }) {
-  const { admin, session } = await authenticate.admin(request);
+export async function loader({ request }) {
+  const { billing, session } = await authenticate.admin(request);
 
   const billingDisabled =
     process.env.BILLING_DISABLED === "true" ||
     process.env.BYPASS_BILLING === "1";
 
-  // If billing is bypassed, do nothing
+  let isActive = false;
+  let subscriptions = [];
+
   if (billingDisabled) {
-    return new Response(JSON.stringify({ ok: true, bypass: true }), {
-      headers: { "Content-Type": "application/json" },
+    isActive = true;
+  } else {
+    const billingStatus = await billing.check({
+      plans: [WISHLIST_PLAN],
+      isTest: true,
     });
+
+    isActive = billingStatus.hasActivePayment;
+    subscriptions = billingStatus.appSubscriptions || [];
   }
 
-  const isActive = await hasActiveWishlistSubscription(admin);
-  if (isActive) {
-    return new Response(JSON.stringify({ ok: true, alreadyActive: true }), {
-      headers: { "Content-Type": "application/json" },
-    });
+  return json({
+    plan: PLAN,
+    isActive,
+    subscriptions,
+    shop: session.shop,
+  });
+}
+
+/* ===============================
+   ACTION
+================================ */
+export async function action({ request }) {
+  const { billing } = await authenticate.admin(request);
+
+  const billingDisabled =
+    process.env.BILLING_DISABLED === "true" ||
+    process.env.BYPASS_BILLING === "1";
+
+  if (billingDisabled) {
+    return json({ ok: true, bypass: true });
+  }
+
+  const billingStatus = await billing.check({
+    plans: [WISHLIST_PLAN],
+    isTest: true,
+  });
+
+  if (billingStatus.hasActivePayment) {
+    return json({ ok: true, alreadyActive: true });
   }
 
   const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
   if (!appUrl) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Missing SHOPIFY_APP_URL (or APP_URL) in .env" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+    return json(
+      { ok: false, error: "Missing SHOPIFY_APP_URL or APP_URL in environment variables" },
+      { status: 500 },
     );
   }
 
-  // Preserve host param if present
-  const url = new URL(request.url);
-  const host = url.searchParams.get("host") || "";
-
-  const confirmationUrl = await startWishlistSubscription({
-    admin,
-    appUrl,
-    shop: session.shop,
-    host,
-  });
-
-  return new Response(JSON.stringify({ confirmationUrl }), {
-    headers: { "Content-Type": "application/json" },
+  return billing.request({
+    plan: WISHLIST_PLAN,
+    isTest: true,
+    trialDays: PLAN.trialDays,
+    returnUrl: `${appUrl}/app/settings`,
   });
 }
 
 /* ===============================
-   UI (CLIENT)
+   UI
 ================================ */
 export default function Pricing() {
   const { plan, isActive } = useLoaderData();
-  const fetcher = useFetcher();
-
-  // redirect top window to Shopify billing confirmation url
-  useEffect(() => {
-    const url = fetcher.data?.confirmationUrl;
-    if (url) window.open(url, "_top");
-  }, [fetcher.data]);
 
   return (
-    <Page title="Plans" subtitle={`Activate ${plan.name} to enable wishlist for your storefront.`}>
+    <Page
+      title="Plans"
+      subtitle={`Activate ${plan.name} to enable wishlist for your storefront.`}
+    >
       <Layout>
         <Layout.Section>
           <Card padding="500">
@@ -114,15 +123,15 @@ export default function Pricing() {
               </Text>
 
               <Text as="p" variant="bodyMd">
-                Add a wishlist icon in header, wishlist button on product pages, and a wishlist page.
-                Works for guest + logged-in customers.
+                Add a wishlist icon in header, wishlist button on product pages, and a wishlist
+                page. Works for guest + logged-in customers.
               </Text>
 
               <List type="bullet">
                 <List.Item>Header wishlist icon</List.Item>
-                <List.Item>Product page “Add to wishlist” button</List.Item>
+                <List.Item>Product page Add to wishlist button</List.Item>
                 <List.Item>Wishlist page with add to cart + remove</List.Item>
-                <List.Item>Paid stores only (billing protected)</List.Item>
+                <List.Item>Paid stores only billing protected</List.Item>
               </List>
             </BlockStack>
           </Card>
@@ -135,6 +144,7 @@ export default function Pricing() {
                 <Text as="h3" variant="headingLg">
                   ${plan.price}/month
                 </Text>
+
                 {isActive ? (
                   <Badge tone="success">Active</Badge>
                 ) : (
@@ -151,16 +161,11 @@ export default function Pricing() {
                   Subscription Active
                 </Button>
               ) : (
-                <fetcher.Form method="post">
-                  <Button
-                    submit
-                    variant="primary"
-                    fullWidth
-                    loading={fetcher.state !== "idle"}
-                  >
+                <Form method="post">
+                  <Button submit variant="primary" fullWidth>
                     Start {plan.trialDays}-Day Free Trial
                   </Button>
-                </fetcher.Form>
+                </Form>
               )}
             </BlockStack>
           </Card>
