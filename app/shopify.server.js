@@ -32,7 +32,6 @@ const shopify = shopifyApp({
     authPathPrefix: "/auth",
     sessionStorage: new PrismaSessionStorage(prisma),
 
-    // Keep this as-is for your current dev/testing setup.
     distribution: AppDistribution.Custom,
 
     future: {
@@ -43,7 +42,7 @@ const shopify = shopifyApp({
     billing: {
         [WISHLIST_PLAN]: {
             lineItems: [{
-                amount: 0,
+                amount: 1,
                 currencyCode: "USD",
                 interval: BillingInterval.Every30Days,
             }, ],

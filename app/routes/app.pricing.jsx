@@ -16,7 +16,7 @@ import { authenticate, WISHLIST_PLAN } from "../shopify.server";
 
 const PLAN = {
   name: "Wishlist Pro",
-  price: 0,
+  price: 1,
   trialDays: 7,
 };
 
@@ -62,6 +62,7 @@ export async function loader({ request }) {
   } catch (error) {
     console.error("APP PRICING LOADER ERROR:");
     console.error(error);
+
     return json(
       {
         ok: false,
