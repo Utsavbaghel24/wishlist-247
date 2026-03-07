@@ -16,7 +16,7 @@ export default function HelpPage() {
             If the wishlist icon/button/page isn’t showing: make sure App Embed is ON and blocks/section are added in Theme Editor, then Save.
           </Text>
           <Text as="p" variant="bodyMd">
-            Reach out to us at <b>abc@gmail.com</b> — we will reach out to you.
+            Reach out to us at <b>wishlistpro247@gmail.com</b> — we will reach out to you.
           </Text>
         </BlockStack>
       </Card>
