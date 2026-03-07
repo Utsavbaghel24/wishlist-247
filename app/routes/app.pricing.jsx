@@ -60,9 +60,7 @@ export async function loader({ request }) {
       shop: session.shop,
     });
   } catch (error) {
-    console.error("APP PRICING LOADER ERROR:");
-    console.error(error);
-
+    console.error("APP PRICING LOADER ERROR:", error);
     return json(
       {
         ok: false,
@@ -74,68 +72,45 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  try {
-    console.log("=== BILLING ACTION START ===");
+  const { billing } = await authenticate.admin(request);
 
-    const { billing, session } = await authenticate.admin(request);
-    console.log("Authenticated shop:", session?.shop);
+  const billingDisabled =
+    process.env.BILLING_DISABLED === "true" ||
+    process.env.BYPASS_BILLING === "1";
 
-    const billingDisabled =
-      process.env.BILLING_DISABLED === "true" ||
-      process.env.BYPASS_BILLING === "1";
+  if (billingDisabled) {
+    return json({ ok: true, bypass: true });
+  }
 
-    console.log("billingDisabled:", billingDisabled);
-    console.log("WISHLIST_PLAN:", WISHLIST_PLAN);
+  const billingStatus = await billing.check({
+    plans: [WISHLIST_PLAN],
+    isTest: true,
+  });
 
-    if (billingDisabled) {
-      return json({ ok: true, bypass: true });
-    }
+  if (billingStatus.hasActivePayment) {
+    return json({ ok: true, alreadyActive: true });
+  }
 
-    const billingStatus = await billing.check({
-      plans: [WISHLIST_PLAN],
-      isTest: true,
-    });
+  const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
 
-    console.log("billingStatus.hasActivePayment:", billingStatus?.hasActivePayment);
-    console.log("billingStatus.appSubscriptions:", billingStatus?.appSubscriptions);
-
-    if (billingStatus.hasActivePayment) {
-      return json({ ok: true, alreadyActive: true });
-    }
-
-    const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
-    console.log("SHOPIFY_APP_URL:", process.env.SHOPIFY_APP_URL);
-    console.log("APP_URL:", process.env.APP_URL);
-    console.log("resolved appUrl:", appUrl);
-
-    if (!appUrl) {
-      throw new Error("Missing SHOPIFY_APP_URL or APP_URL");
-    }
-
-    const returnUrl = `${appUrl}/app/settings`;
-    console.log("returnUrl:", returnUrl);
-
-    console.log("About to call billing.request...");
-
-    return await billing.request({
-      plan: WISHLIST_PLAN,
-      isTest: true,
-      trialDays: PLAN.trialDays,
-      returnUrl,
-    });
-  } catch (error) {
-    console.error("=== BILLING ACTION ERROR ===");
-    console.error(error);
-
+  if (!appUrl) {
     return json(
-      {
-        ok: false,
-        error: error?.message || "Billing action failed",
-        stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined,
-      },
+      { ok: false, error: "Missing SHOPIFY_APP_URL or APP_URL" },
       { status: 500 },
     );
   }
+
+  const returnUrl = `${appUrl}/app/settings`;
+
+  // IMPORTANT:
+  // Do NOT wrap this in try/catch.
+  // Shopify returns a redirect Response here and it must pass through.
+  return billing.request({
+    plan: WISHLIST_PLAN,
+    isTest: true,
+    trialDays: PLAN.trialDays,
+    returnUrl,
+  });
 }
 
 export default function Pricing() {
