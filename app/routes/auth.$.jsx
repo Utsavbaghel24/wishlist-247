@@ -1,5 +1,4 @@
 // app/routes/auth.$.jsx
-
 import { redirect } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
@@ -12,7 +11,7 @@ export const loader = async ({ request }) => {
   // 2) Register required webhooks (APP_UNINSTALLED, etc.)
   await registerRequiredWebhooks(request);
 
-  // 3) Redirect into the embedded app (KEEP host + shop)
+  // 3) Redirect into the embedded app
   const url = new URL(request.url);
   const shop = url.searchParams.get("shop");
   const host = url.searchParams.get("host");

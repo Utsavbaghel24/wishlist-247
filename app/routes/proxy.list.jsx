@@ -29,7 +29,8 @@ function hmacHex(secret, msg) {
 }
 
 /**
- * ✅ App Proxy signature verification (tries BOTH decoded + raw styles)
+ * App Proxy signature verification
+ * Tries BOTH decoded + raw styles
  * Accept if either digest matches Shopify's `signature`.
  */
 function verifyProxySignature(requestUrl) {
@@ -48,6 +49,7 @@ function verifyProxySignature(requestUrl) {
     if (k === "signature") continue;
     decodedEntries.push([k, v]);
   }
+
   decodedEntries.sort(([a], [b]) => a.localeCompare(b));
   const decodedMsg = decodedEntries.map(([k, v]) => `${k}=${v}`).join("");
   const decodedDigest = hmacHex(secret, decodedMsg);
@@ -70,6 +72,7 @@ function verifyProxySignature(requestUrl) {
 
   const rawFiltered = rawPairs.filter(([k]) => k !== "signature");
   rawFiltered.sort(([a], [b]) => a.localeCompare(b));
+
   const rawMsg = rawFiltered.map(([k, v]) => `${k}=${v}`).join("");
   const rawDigest = hmacHex(secret, rawMsg);
 
@@ -111,7 +114,9 @@ export async function loader({ request }) {
     }
 
     const shop = getShop(request);
-    if (!shop) return json({ ok: false, items: [], error: "Missing shop" }, 200);
+    if (!shop) {
+      return json({ ok: false, items: [], error: "Missing shop" }, 200);
+    }
 
     // Optional enabled gate (fail-open)
     let enabled = true;
@@ -128,7 +133,7 @@ export async function loader({ request }) {
     if (!enabled) {
       return json(
         { ok: false, disabled: true, items: [], error: "Wishlist disabled" },
-        403
+        403,
       );
     }
 
@@ -143,6 +148,9 @@ export async function loader({ request }) {
     return json({ ok: true, items }, 200);
   } catch (e) {
     console.error("LIST ERROR:", e);
-    return json({ ok: false, items: [], error: e?.message || "Server error" }, 200);
+    return json(
+      { ok: false, items: [], error: e?.message || "Server error" },
+      200,
+    );
   }
 }

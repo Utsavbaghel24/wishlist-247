@@ -1,12 +1,12 @@
 // app/routes/proxy.jsx
 import crypto from "crypto";
-import { json } from "@remix-run/node";
+import { data } from "react-router";
 import { sessionStorage } from "../shopify.server";
 import { hasActiveWishlistSubscription } from "../billing.server";
 
 /**
- * ✅ Verify Shopify App Proxy signature
- * App Proxy uses `signature` (NOT `hmac`).
+ * Verify Shopify App Proxy signature
+ * App Proxy uses `signature` (not `hmac`)
  */
 function verifyAppProxySignature(requestUrl, apiSecret) {
   const url = new URL(requestUrl);
@@ -15,17 +15,14 @@ function verifyAppProxySignature(requestUrl, apiSecret) {
   const signature = params.get("signature");
   if (!signature) return false;
 
-  // Collect all params except signature
   const entries = [];
   for (const [k, v] of params.entries()) {
     if (k === "signature") continue;
     entries.push([k, v]);
   }
 
-  // Sort by key
   entries.sort(([a], [b]) => a.localeCompare(b));
 
-  // Build message as key=value concatenation (no separators)
   const message = entries.map(([k, v]) => `${k}=${v}`).join("");
 
   const digest = crypto
@@ -45,33 +42,32 @@ export async function loader({ request }) {
     const url = new URL(request.url);
     const shop = url.searchParams.get("shop");
 
-    // 1) Must have shop
     if (!shop) {
-      return json({ ok: false, error: "Missing shop" }, { status: 400 });
+      return data({ ok: false, error: "Missing shop" }, { status: 400 });
     }
 
-    // 2) Verify proxy signature
-    const okSig = verifyAppProxySignature(request.url, process.env.SHOPIFY_API_SECRET);
+    const okSig = verifyAppProxySignature(
+      request.url,
+      process.env.SHOPIFY_API_SECRET,
+    );
+
     if (!okSig) {
-      return json({ ok: false, error: "Invalid proxy signature" }, { status: 401 });
+      return data({ ok: false, error: "Invalid proxy signature" }, { status: 401 });
     }
 
-    // 3) Load offline session (required if you want billing/admin access)
     const offlineId = `offline_${shop}`;
     const offlineSession = await sessionStorage.loadSession(offlineId);
 
     if (!offlineSession?.accessToken) {
-      return json(
+      return data(
         {
           ok: false,
           error: "Offline session missing. Please uninstall and reinstall the app.",
         },
-        { status: 401 }
+        { status: 401 },
       );
     }
 
-    // 4) Billing gate (uses Admin API via accessToken)
-    // Build a minimal admin GraphQL caller (no need authenticate.public/admin here)
     const admin = {
       graphql: async (query, options = {}) => {
         const resp = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
@@ -86,11 +82,12 @@ export async function loader({ request }) {
           }),
         });
 
-        const data = await resp.json();
+        const responseData = await resp.json();
+
         return {
           ok: resp.ok,
           status: resp.status,
-          json: async () => data,
+          json: async () => responseData,
         };
       },
     };
@@ -98,19 +95,21 @@ export async function loader({ request }) {
     const isActive = await hasActiveWishlistSubscription(admin);
 
     if (!isActive) {
-      return json(
+      return data(
         {
           ok: false,
           billingRequired: true,
           error: "Billing required. Please activate your plan in the app.",
         },
-        { status: 402 }
+        { status: 402 },
       );
     }
 
-    // ✅ Success
-    return json({ ok: true, message: "Proxy working", shop });
+    return data({ ok: true, message: "Proxy working", shop });
   } catch (e) {
-    return json({ ok: false, error: e?.message || "Server error" }, { status: 500 });
+    return data(
+      { ok: false, error: e?.message || "Server error" },
+      { status: 500 },
+    );
   }
 }

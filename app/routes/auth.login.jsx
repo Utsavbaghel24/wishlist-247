@@ -40,14 +40,17 @@ export async function loader({ request }) {
     }
   }
 
-  // Otherwise show manual login form
+  // 3) Otherwise show manual login form
   return null;
 }
 
 export async function action({ request }) {
   const form = await request.formData();
   const shop = String(form.get("shop") || "").trim();
-  if (!shop) return null;
+
+  if (!shop) {
+    return null;
+  }
 
   throw redirect(`/auth?shop=${encodeURIComponent(shop)}`);
 }
@@ -57,26 +60,28 @@ export default function AuthLogin() {
 
   return (
     <Page title="Log in">
-      <Card sectioned>
-        <Text as="p" variant="bodyMd">
-          Enter your shop domain to continue.
-        </Text>
+      <Card>
+        <div style={{ padding: "16px" }}>
+          <Text as="p" variant="bodyMd">
+            Enter your shop domain to continue.
+          </Text>
 
-        <Form method="post">
-          <FormLayout>
-            <TextField
-              label="Shop domain"
-              value={shop}
-              onChange={setShop}
-              placeholder="example.myshopify.com"
-              autoComplete="off"
-              name="shop"
-            />
-            <Button submit primary>
-              Log in
-            </Button>
-          </FormLayout>
-        </Form>
+          <Form method="post">
+            <FormLayout>
+              <TextField
+                label="Shop domain"
+                value={shop}
+                onChange={setShop}
+                placeholder="example.myshopify.com"
+                autoComplete="off"
+                name="shop"
+              />
+              <Button submit variant="primary">
+                Log in
+              </Button>
+            </FormLayout>
+          </Form>
+        </div>
       </Card>
     </Page>
   );
