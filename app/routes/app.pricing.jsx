@@ -1,7 +1,5 @@
 // app/routes/app.pricing.jsx
-
 import { Form, useLoaderData } from "react-router";
-
 import {
   Page,
   Layout,
@@ -32,83 +30,118 @@ function json(data, init) {
   });
 }
 
-/* ===============================
-   LOADER
-================================ */
 export async function loader({ request }) {
-  const { billing, session } = await authenticate.admin(request);
+  try {
+    const { billing, session } = await authenticate.admin(request);
 
-  const billingDisabled =
-    process.env.BILLING_DISABLED === "true" ||
-    process.env.BYPASS_BILLING === "1";
+    const billingDisabled =
+      process.env.BILLING_DISABLED === "true" ||
+      process.env.BYPASS_BILLING === "1";
 
-  let isActive = false;
-  let subscriptions = [];
+    let isActive = false;
+    let subscriptions = [];
 
-  if (billingDisabled) {
-    isActive = true;
-  } else {
+    if (billingDisabled) {
+      isActive = true;
+    } else {
+      const billingStatus = await billing.check({
+        plans: [WISHLIST_PLAN],
+        isTest: true,
+      });
+
+      isActive = billingStatus.hasActivePayment;
+      subscriptions = billingStatus.appSubscriptions || [];
+    }
+
+    return json({
+      plan: PLAN,
+      isActive,
+      subscriptions,
+      shop: session.shop,
+    });
+  } catch (error) {
+    console.error("APP PRICING LOADER ERROR:");
+    console.error(error);
+    return json(
+      {
+        ok: false,
+        error: error?.message || "Pricing loader failed",
+      },
+      { status: 500 },
+    );
+  }
+}
+
+export async function action({ request }) {
+  try {
+    console.log("=== BILLING ACTION START ===");
+
+    const { billing, session } = await authenticate.admin(request);
+    console.log("Authenticated shop:", session?.shop);
+
+    const billingDisabled =
+      process.env.BILLING_DISABLED === "true" ||
+      process.env.BYPASS_BILLING === "1";
+
+    console.log("billingDisabled:", billingDisabled);
+    console.log("WISHLIST_PLAN:", WISHLIST_PLAN);
+
+    if (billingDisabled) {
+      return json({ ok: true, bypass: true });
+    }
+
     const billingStatus = await billing.check({
       plans: [WISHLIST_PLAN],
       isTest: true,
     });
 
-    isActive = billingStatus.hasActivePayment;
-    subscriptions = billingStatus.appSubscriptions || [];
-  }
+    console.log("billingStatus.hasActivePayment:", billingStatus?.hasActivePayment);
+    console.log("billingStatus.appSubscriptions:", billingStatus?.appSubscriptions);
 
-  return json({
-    plan: PLAN,
-    isActive,
-    subscriptions,
-    shop: session.shop,
-  });
-}
+    if (billingStatus.hasActivePayment) {
+      return json({ ok: true, alreadyActive: true });
+    }
 
-/* ===============================
-   ACTION
-================================ */
-export async function action({ request }) {
-  const { billing } = await authenticate.admin(request);
+    const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
+    console.log("SHOPIFY_APP_URL:", process.env.SHOPIFY_APP_URL);
+    console.log("APP_URL:", process.env.APP_URL);
+    console.log("resolved appUrl:", appUrl);
 
-  const billingDisabled =
-    process.env.BILLING_DISABLED === "true" ||
-    process.env.BYPASS_BILLING === "1";
+    if (!appUrl) {
+      throw new Error("Missing SHOPIFY_APP_URL or APP_URL");
+    }
 
-  if (billingDisabled) {
-    return json({ ok: true, bypass: true });
-  }
+    const returnUrl = `${appUrl}/app/settings`;
+    console.log("returnUrl:", returnUrl);
 
-  const billingStatus = await billing.check({
-    plans: [WISHLIST_PLAN],
-    isTest: true,
-  });
+    console.log("About to call billing.request...");
 
-  if (billingStatus.hasActivePayment) {
-    return json({ ok: true, alreadyActive: true });
-  }
+    return await billing.request({
+      plan: WISHLIST_PLAN,
+      isTest: true,
+      trialDays: PLAN.trialDays,
+      returnUrl,
+    });
+  } catch (error) {
+    console.error("=== BILLING ACTION ERROR ===");
+    console.error(error);
 
-  const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
-  if (!appUrl) {
     return json(
-      { ok: false, error: "Missing SHOPIFY_APP_URL or APP_URL in environment variables" },
+      {
+        ok: false,
+        error: error?.message || "Billing action failed",
+        stack: process.env.NODE_ENV !== "production" ? error?.stack : undefined,
+      },
       { status: 500 },
     );
   }
-
-  return billing.request({
-    plan: WISHLIST_PLAN,
-    isTest: true,
-    trialDays: PLAN.trialDays,
-    returnUrl: `${appUrl}/app/settings`,
-  });
 }
 
-/* ===============================
-   UI
-================================ */
 export default function Pricing() {
-  const { plan, isActive } = useLoaderData();
+  const data = useLoaderData();
+
+  const plan = data?.plan || PLAN;
+  const isActive = !!data?.isActive;
 
   return (
     <Page
