@@ -1,0 +1,481 @@
+<div class="wl-block" 
+  data-product-id="{{ product.id }}"
+  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  data-product-title="{{ product.title | escape }}"
+  data-product-url="{{ product.url }}"
+  data-product-price="{{ product.price | money | escape }}"
+  data-product-image="{% if product.featured_image %}{{ product.featured_image | image_url: width: 300 }}{% endif %}"
+>
+  <button
+    type="button"
+    class="wl-btn"
+    data-product-id="{{ product.id }}"
+    data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  >
+    <span class="wl-text">Add to wishlist</span>
+  </button>
+</div>
+
+<style>
+  .wl-block {
+    width: 100%;
+    margin-top: 14px;
+  }
+
+  .wl-btn {
+    width: 100%;
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 22px;
+    border: 1.5px solid #17324d;
+    background: #ffffff;
+    color: #17324d;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.2;
+    text-align: center;
+    transition: all 0.25s ease;
+    box-shadow: none;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  .wl-btn:hover {
+    background: #17324d;
+    color: #ffffff;
+  }
+
+  .wl-btn.wl-added {
+    background: #17324d;
+    color: #ffffff;
+    border-color: #17324d;
+  }
+
+  .wl-btn:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(23, 50, 77, 0.12);
+  }
+
+  .wl-floating {
+    position: fixed;
+    left: 18px;
+    bottom: 18px;
+    z-index: 99999;
+    display: none;
+  }
+
+  .wl-floating.wl-show {
+    display: block;
+  }
+
+  .wl-floating-btn {
+    width: 58px;
+    height: 58px;
+    border: none;
+    border-radius: 14px;
+    background: #17324d;
+    color: #ffffff;
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+    transition: transform 0.2s ease, background 0.2s ease;
+  }
+
+  .wl-floating-btn:hover {
+    transform: translateY(-2px);
+    background: #10273d;
+  }
+
+  .wl-floating-count {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: #a6dc63;
+    color: #17324d;
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+  }
+
+  .wl-drawer {
+    position: fixed;
+    left: 18px;
+    bottom: 88px;
+    width: 360px;
+    max-width: calc(100vw - 36px);
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.16);
+    z-index: 999999;
+    overflow: hidden;
+    display: none;
+    border: 1px solid rgba(23, 50, 77, 0.08);
+  }
+
+  .wl-drawer.wl-open {
+    display: block;
+  }
+
+  .wl-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 18px;
+    border-bottom: 1px solid #eef1f4;
+    background: #ffffff;
+  }
+
+  .wl-drawer-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #17324d;
+  }
+
+  .wl-drawer-close {
+    border: none;
+    background: transparent;
+    color: #17324d;
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .wl-drawer-body {
+    max-height: 420px;
+    overflow-y: auto;
+    padding: 8px 16px 16px;
+  }
+
+  .wl-empty {
+    padding: 20px 4px 10px;
+    color: #5b6875;
+    font-size: 14px;
+  }
+
+  .wl-item {
+    display: grid;
+    grid-template-columns: 64px 1fr auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #eef1f4;
+  }
+
+  .wl-item:last-child {
+    border-bottom: none;
+  }
+
+  .wl-item-image {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #f5f7f9;
+    flex-shrink: 0;
+  }
+
+  .wl-item-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .wl-item-info {
+    min-width: 0;
+  }
+
+  .wl-item-title {
+    display: block;
+    color: #17324d;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    line-height: 1.35;
+    margin-bottom: 6px;
+  }
+
+  .wl-item-title:hover {
+    text-decoration: underline;
+  }
+
+  .wl-item-price {
+    font-size: 13px;
+    color: #5b6875;
+  }
+
+  .wl-remove {
+    border: none;
+    background: #f4f6f8;
+    color: #17324d;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: 10px;
+    padding: 9px 12px;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    white-space: nowrap;
+  }
+
+  .wl-remove:hover {
+    background: #e8edf2;
+  }
+
+  @media (max-width: 749px) {
+    .wl-btn {
+      min-height: 54px;
+      font-size: 15px;
+      padding: 14px 18px;
+    }
+
+    .wl-floating {
+      left: 14px;
+      bottom: 14px;
+    }
+
+    .wl-drawer {
+      left: 14px;
+      bottom: 82px;
+      max-width: calc(100vw - 28px);
+    }
+  }
+</style>
+
+<script>
+(function() {
+  const scriptTag = document.currentScript;
+  const block = scriptTag.previousElementSibling;
+  if (!block || !block.classList.contains('wl-block')) return;
+
+  const btn = block.querySelector('.wl-btn');
+  if (!btn) return;
+
+  const STORAGE_KEY = 'wl_guest_v2';
+
+  const productData = {
+    productId: String(block.dataset.productId || ''),
+    variantId: String(block.dataset.variantId || ''),
+    title: block.dataset.productTitle || '',
+    url: block.dataset.productUrl || '',
+    price: block.dataset.productPrice || '',
+    image: block.dataset.productImage || ''
+  };
+
+  function getWishlist() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function setWishlist(items) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  }
+
+  function isCurrentProductWishlisted() {
+    const items = getWishlist();
+    return items.some(item => String(item.productId) === productData.productId && String(item.variantId) === productData.variantId);
+  }
+
+  function updateButtonState() {
+    const added = isCurrentProductWishlisted();
+    const textEl = btn.querySelector('.wl-text');
+
+    if (added) {
+      btn.classList.add('wl-added');
+      if (textEl) textEl.textContent = 'Wishlisted';
+    } else {
+      btn.classList.remove('wl-added');
+      if (textEl) textEl.textContent = 'Add to wishlist';
+    }
+  }
+
+  function ensureFloatingUI() {
+    if (!document.getElementById('wl-floating')) {
+      const floating = document.createElement('div');
+      floating.className = 'wl-floating';
+      floating.id = 'wl-floating';
+      floating.innerHTML = `
+        <button type="button" class="wl-floating-btn" id="wl-floating-btn" aria-label="Open wishlist">
+          ❤
+          <span class="wl-floating-count" id="wl-floating-count">0</span>
+        </button>
+      `;
+      document.body.appendChild(floating);
+    }
+
+    if (!document.getElementById('wl-drawer')) {
+      const drawer = document.createElement('div');
+      drawer.className = 'wl-drawer';
+      drawer.id = 'wl-drawer';
+      drawer.innerHTML = `
+        <div class="wl-drawer-header">
+          <h3 class="wl-drawer-title">My Wishlist</h3>
+          <button type="button" class="wl-drawer-close" id="wl-drawer-close" aria-label="Close wishlist">×</button>
+        </div>
+        <div class="wl-drawer-body" id="wl-drawer-body"></div>
+      `;
+      document.body.appendChild(drawer);
+    }
+
+    const floatingBtn = document.getElementById('wl-floating-btn');
+    const drawer = document.getElementById('wl-drawer');
+    const drawerClose = document.getElementById('wl-drawer-close');
+
+    if (floatingBtn && !floatingBtn.dataset.bound) {
+      floatingBtn.dataset.bound = 'true';
+      floatingBtn.addEventListener('click', function() {
+        renderWishlistDrawer();
+        drawer.classList.toggle('wl-open');
+      });
+    }
+
+    if (drawerClose && !drawerClose.dataset.bound) {
+      drawerClose.dataset.bound = 'true';
+      drawerClose.addEventListener('click', function() {
+        drawer.classList.remove('wl-open');
+      });
+    }
+
+    if (!document.body.dataset.wlOutsideClickBound) {
+      document.body.dataset.wlOutsideClickBound = 'true';
+      document.addEventListener('click', function(event) {
+        const drawerEl = document.getElementById('wl-drawer');
+        const floatingEl = document.getElementById('wl-floating');
+
+        if (!drawerEl || !floatingEl) return;
+        if (!drawerEl.classList.contains('wl-open')) return;
+
+        const clickedInsideDrawer = drawerEl.contains(event.target);
+        const clickedFloating = floatingEl.contains(event.target);
+
+        if (!clickedInsideDrawer && !clickedFloating) {
+          drawerEl.classList.remove('wl-open');
+        }
+      });
+    }
+  }
+
+  function updateFloatingState() {
+    const items = getWishlist();
+    const floating = document.getElementById('wl-floating');
+    const count = document.getElementById('wl-floating-count');
+
+    if (!floating || !count) return;
+
+    count.textContent = items.length;
+
+    if (items.length > 0) {
+      floating.classList.add('wl-show');
+    } else {
+      floating.classList.remove('wl-show');
+      const drawer = document.getElementById('wl-drawer');
+      if (drawer) drawer.classList.remove('wl-open');
+    }
+  }
+
+  function renderWishlistDrawer() {
+    const body = document.getElementById('wl-drawer-body');
+    if (!body) return;
+
+    const items = getWishlist();
+
+    if (!items.length) {
+      body.innerHTML = `<div class="wl-empty">Your wishlist is empty.</div>`;
+      return;
+    }
+
+    body.innerHTML = items.map(item => `
+      <div class="wl-item">
+        <div class="wl-item-image">
+          ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.title || '')}">` : ''}
+        </div>
+        <div class="wl-item-info">
+          <a class="wl-item-title" href="${item.url || '#'}">${escapeHtml(item.title || 'Product')}</a>
+          <div class="wl-item-price">${escapeHtml(item.price || '')}</div>
+        </div>
+        <button 
+          type="button" 
+          class="wl-remove" 
+          data-remove-product-id="${item.productId}" 
+          data-remove-variant-id="${item.variantId}"
+        >
+          Remove
+        </button>
+      </div>
+    `).join('');
+
+    body.querySelectorAll('.wl-remove').forEach(removeBtn => {
+      removeBtn.addEventListener('click', function() {
+        const productId = this.getAttribute('data-remove-product-id');
+        const variantId = this.getAttribute('data-remove-variant-id');
+
+        const updated = getWishlist().filter(item => {
+          return !(String(item.productId) === String(productId) && String(item.variantId) === String(variantId));
+        });
+
+        setWishlist(updated);
+        updateButtonState();
+        updateFloatingState();
+        renderWishlistDrawer();
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  btn.addEventListener('click', function() {
+    const current = getWishlist();
+    const exists = current.some(item => String(item.productId) === productData.productId && String(item.variantId) === productData.variantId);
+
+    let next;
+    if (exists) {
+      next = current.filter(item => !(String(item.productId) === productData.productId && String(item.variantId) === productData.variantId));
+    } else {
+      next = [...current, productData];
+    }
+
+    setWishlist(next);
+    updateButtonState();
+    updateFloatingState();
+    renderWishlistDrawer();
+  });
+
+  ensureFloatingUI();
+  updateButtonState();
+  updateFloatingState();
+  renderWishlistDrawer();
+})();
+</script>
+
+{% schema %}
+{
+  "name": "Wishlist Button",
+  "target": "section"
+}
+{% endschema %}
