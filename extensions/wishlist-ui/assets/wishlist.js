@@ -172,11 +172,22 @@
     }
   }
 
-  async function apiToggle(customerId, productId, variantId) {
-    var res = await fetch(withShop("/apps/wishlist/toggle"), {
+async function apiToggle(customerId, productId, variantId) {
+  try {
+    var url = withShop("/apps/wishlist/toggle");
+
+    console.log("Wishlist toggle request:", {
+      url: url,
+      customerId: String(customerId),
+      productId: String(productId),
+      variantId: String(variantId),
+    });
+
+    var res = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "Accept": "application/json"
       },
       credentials: "same-origin",
       body: new URLSearchParams({
@@ -186,11 +197,34 @@
       }),
     });
 
+    var text = await res.text();
+    console.log("Wishlist toggle raw response:", text);
+
+    var data = null;
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (e) {
+      console.error("Wishlist toggle JSON parse failed:", e);
+    }
+
+    console.log("Wishlist toggle parsed response:", data);
+
     if (res.status === 402) return { ok: false, billingRequired: true };
 
-    var data = await safeJson(res);
-    return data || { ok: false };
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        error: data || text || "Request failed"
+      };
+    }
+
+    return data || { ok: false, error: "Empty response" };
+  } catch (e) {
+    console.error("apiToggle error:", e);
+    return { ok: false, error: e.message || "Unknown error" };
   }
+}
 
   async function apiList(customerId) {
     var res = await fetch(
@@ -336,11 +370,17 @@
       }
 
       if (result && result.ok) {
-        await syncAll();
-        showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
-      } else {
-        showToast("Could not update wishlist", true);
-      }
+  await syncAll();
+  showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
+} else {
+  console.error("Wishlist toggle failed result:", result);
+  showToast(
+    result && result.error
+      ? "Wishlist error: " + String(result.error).slice(0, 80)
+      : "Could not update wishlist",
+    true
+  );
+}
     } catch (err) {
       console.error("Wishlist failed", err);
       showToast("Something went wrong", true);
