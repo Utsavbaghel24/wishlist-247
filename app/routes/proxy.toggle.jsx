@@ -1,4 +1,3 @@
-// app/routes/proxy.toggle.jsx
 import crypto from "crypto";
 import prisma from "../db.server";
 
@@ -73,19 +72,19 @@ function readQuery(request) {
   };
 }
 
-async function handleToggle(request, source = "POST") {
+async function handleToggle(request, source = "GET") {
   try {
     if (!verifyProxySignature(request.url)) {
-      return json({ ok: false, error: "Invalid signature" }, 200);
+      return json({ ok: false, error: "Invalid signature", source }, 200);
     }
 
     const shop = getShop(request);
     if (!shop) {
-      return json({ ok: false, error: "Missing shop" }, 200);
+      return json({ ok: false, error: "Missing shop", source }, 200);
     }
 
     const input =
-      request.method === "GET" ? readQuery(request) : await readBody(request);
+      request.method === "POST" ? await readBody(request) : readQuery(request);
 
     const customerId = String(input.customerId || "guest");
     const productId = String(input.productId || "");
@@ -93,37 +92,34 @@ async function handleToggle(request, source = "POST") {
 
     if (!productId || !variantId) {
       return json(
-        {
-          ok: false,
-          error: "Missing productId or variantId",
-          method: request.method,
-          source,
-        },
+        { ok: false, error: "Missing productId or variantId", source },
         200
       );
     }
 
-    const key = {
-      shop_customerId_variantId: {
+    const existing = await prisma.wishlistItem.findFirst({
+      where: {
         shop,
         customerId,
         variantId,
       },
-    };
-
-    const existing = await prisma.wishlistItem.findUnique({ where: key });
+    });
 
     if (existing) {
-      await prisma.wishlistItem.delete({ where: { id: existing.id } });
+      await prisma.wishlistItem.delete({
+        where: { id: existing.id },
+      });
+
       return json(
         {
           ok: true,
           wishlisted: false,
           action: "removed",
+          source,
+          shop,
           customerId,
           productId,
           variantId,
-          shop,
         },
         200
       );
@@ -143,23 +139,31 @@ async function handleToggle(request, source = "POST") {
         ok: true,
         wishlisted: true,
         action: "added",
+        source,
+        shop,
         customerId,
         productId,
         variantId,
-        shop,
       },
       200
     );
   } catch (e) {
     console.error("TOGGLE ERROR:", e);
-    return json({ ok: false, error: e?.message || "Server error" }, 200);
+    return json(
+      {
+        ok: false,
+        error: e?.message || "Server error",
+        source,
+      },
+      200
+    );
   }
 }
 
 export async function loader({ request }) {
-  return handleToggle(request, "GET");
+  return handleToggle(request, "loader");
 }
 
 export async function action({ request }) {
-  return handleToggle(request, "POST");
+  return handleToggle(request, "action");
 }
