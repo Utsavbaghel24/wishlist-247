@@ -1,27 +1,15 @@
 {% comment %}
-Wishlist Product Button
-Uses the main wishlist.js logic already working in your app.
-Bottom-left floating icon links to /pages/wishlist
+FINAL CLEAN VERSION
+- No wl-nav link
+- Only button + floating icon
 {% endcomment %}
 
 <style>
-/* ===== Base visibility ===== */
 .wishlist-ui {
   display: block !important;
 }
 
-html:not(.wishlist-paid) .wishlist-ui {
-  opacity: 0.45;
-  pointer-events: none;
-  filter: grayscale(1);
-}
-
-/* ===== Button ===== */
-.wl-block {
-  width: 100%;
-  margin-top: 16px;
-}
-
+/* BUTTON */
 .wl-btn {
   width: 100%;
   min-height: 58px;
@@ -36,31 +24,20 @@ html:not(.wishlist-paid) .wishlist-ui {
   cursor: pointer;
   font-size: 16px;
   font-weight: 500;
-  text-align: center;
   transition: all 0.25s ease;
-  appearance: none;
 }
 
-/* Hover */
 .wl-btn:hover {
   background: #000;
   color: #fff;
 }
 
-/* Active (Wishlisted) */
 .wl-btn.is-active {
   background: #000;
   color: #fff;
-  border-color: #000;
 }
 
-/* Focus */
-.wl-btn:focus {
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
-}
-
-/* ===== Floating Icon (Bottom Left) ===== */
+/* FLOATING ICON */
 .wl-floating-link {
   position: fixed;
   left: 18px;
@@ -74,38 +51,19 @@ html:not(.wishlist-paid) .wishlist-ui {
   background: #000;
   color: #fff;
 
-  text-decoration: none;
-
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: center;
 
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
-
-  transition: all 0.2s ease;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.2);
 }
 
-/* Show */
-.wl-floating-link.wl-show {
-  display: flex;
-}
-
-/* Hover effect */
-.wl-floating-link:hover {
-  transform: translateY(-3px);
-  background: #111;
-}
-
-/* ===== Heart Icon ===== */
 .wl-floating-heart {
   font-size: 22px;
-  color: #ff2e63; /* RED ❤️ */
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  color: #ff2e63;
 }
 
-/* ===== Count Badge ===== */
+/* COUNT BADGE */
 .wl-floating-count {
   position: absolute;
   top: -6px;
@@ -115,8 +73,8 @@ html:not(.wishlist-paid) .wishlist-ui {
   height: 20px;
 
   padding: 0 5px;
-
   border-radius: 999px;
+
   background: #fff;
   color: #000;
 
@@ -126,172 +84,65 @@ html:not(.wishlist-paid) .wishlist-ui {
   display: none;
   align-items: center;
   justify-content: center;
-
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
 }
 
-/* Show badge */
 .wl-floating-count.wl-show {
   display: flex;
 }
 
-/* ===== Mobile ===== */
-@media (max-width: 749px) {
-  .wl-btn {
-    min-height: 52px;
-    font-size: 15px;
-    padding: 14px 18px;
-  }
+/* TOAST */
+.wl-toast {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  background: #000;
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 8px;
+  opacity: 0;
+  transform: translateY(10px);
+  transition: 0.3s;
+  z-index: 99999;
+}
 
-  .wl-floating-link {
-    left: 14px;
-    bottom: 14px;
-  }
+.wl-toast.show {
+  opacity: 1;
+  transform: translateY(0);
 }
 </style>
 
 <script>
   window.wishlistCustomerId = {{ customer.id | json }};
+  window.WISHLIST_SHOP = {{ shop.permanent_domain | json }};
 </script>
 
-<div
-  class="wishlist-ui wl-block"
-  data-product-id="{{ product.id }}"
-  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
->
+<!-- PRODUCT BUTTON -->
+<div class="wishlist-ui">
   <button
-    type="button"
     class="wl-btn"
     data-wl-toggle
     data-product-id="{{ product.id }}"
     data-variant-id="{{ product.selected_or_first_available_variant.id }}"
-    aria-pressed="false"
   >
-    <span class="wl-text" data-wl-label>Add to wishlist</span>
+    <span data-wl-label>Add to wishlist</span>
   </button>
 </div>
 
-<a href="/pages/wishlist" class="wishlist-ui wl-floating-link" id="wl-floating-link" aria-label="Open wishlist page">
+<!-- FLOATING ICON -->
+<a href="/pages/wishlist" class="wishlist-ui wl-floating-link">
   <span class="wl-floating-heart">❤</span>
-  <span class="wl-floating-count" id="wl-floating-count" data-wl-count>0</span>
+  <span class="wl-floating-count" data-wl-count>0</span>
 </a>
 
-{% comment %}
-Load wishlist.js if not already loaded
-{% endcomment %}
+<!-- LOAD JS -->
 <script>
-  (function(){
-    var alreadyLoaded =
-      (typeof window.WishlistUI !== "undefined") ||
-      document.querySelector('script[data-wl-script="1"]');
-
-    if (!alreadyLoaded) {
-      var s = document.createElement("script");
-      s.src = {{ 'wishlist.js' | asset_url | json }};
-      s.defer = true;
-      s.setAttribute("data-wl-script", "1");
-      document.head.appendChild(s);
-    }
-
-    function updateFloatingIcon() {
-      var countEl = document.getElementById("wl-floating-count");
-      var linkEl = document.getElementById("wl-floating-link");
-      if (!countEl || !linkEl) return;
-
-      var count = parseInt(countEl.textContent || "0", 10) || 0;
-
-      if (count > 0) {
-        linkEl.classList.add("wl-show");
-        countEl.classList.add("wl-show");
-      } else {
-        linkEl.classList.remove("wl-show");
-        countEl.classList.remove("wl-show");
-      }
-    }
-
-    function syncButtonText() {
-      document.querySelectorAll('.wl-btn[data-wl-toggle]').forEach(function(btn) {
-        var label = btn.querySelector('[data-wl-label]');
-        if (!label) return;
-
-        if (btn.classList.contains('is-active') || btn.getAttribute('aria-pressed') === 'true') {
-          label.textContent = 'Wishlisted';
-        } else {
-          label.textContent = 'Add to wishlist';
-        }
-      });
-    }
-
-    function waitForWishlistAndSync() {
-      var tries = 0;
-
-      var timer = setInterval(function() {
-        tries++;
-
-        syncButtonText();
-        updateFloatingIcon();
-
-        if (window.WishlistUI && typeof window.WishlistUI.sync === 'function') {
-          window.WishlistUI.sync().then(function() {
-            syncButtonText();
-            updateFloatingIcon();
-          }).catch(function(){});
-        }
-
-        if (tries > 20) {
-          clearInterval(timer);
-        }
-      }, 500);
-    }
-
-    document.addEventListener('click', function(e) {
-      var btn = e.target.closest('[data-wl-toggle]');
-      if (!btn) return;
-
-      setTimeout(function() {
-        if (window.WishlistUI && typeof window.WishlistUI.sync === 'function') {
-          window.WishlistUI.sync().then(function() {
-            syncButtonText();
-            updateFloatingIcon();
-          }).catch(function(){});
-        } else {
-          syncButtonText();
-          updateFloatingIcon();
-        }
-      }, 700);
-    });
-
-    document.addEventListener('DOMContentLoaded', function() {
-      waitForWishlistAndSync();
-    });
-
-    if (document.readyState !== 'loading') {
-      waitForWishlistAndSync();
-    }
-
-    var observer = new MutationObserver(function() {
-      updateFloatingIcon();
-      syncButtonText();
-    });
-
-    window.addEventListener('load', function() {
-      var countEl = document.getElementById('wl-floating-count');
-      if (countEl) {
-        observer.observe(countEl, { childList: true, subtree: true, characterData: true });
-      }
-
-      setTimeout(function() {
-        syncButtonText();
-        updateFloatingIcon();
-      }, 1200);
-    });
-  })();
+(function(){
+  if (!document.querySelector('[data-wl-script]')) {
+    var s = document.createElement("script");
+    s.src = {{ 'wishlist.js' | asset_url | json }};
+    s.defer = true;
+    s.setAttribute("data-wl-script","1");
+    document.head.appendChild(s);
+  }
+})();
 </script>
-
-{% schema %}
-{
-  "name": "Wishlist Button",
-  "target": "section",
-  "settings": []
-}
-{% endschema %}
