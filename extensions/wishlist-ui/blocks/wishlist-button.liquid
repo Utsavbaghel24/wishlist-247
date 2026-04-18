@@ -159,133 +159,177 @@ html:not(.wishlist-paid) .wishlist-ui {
   data-product-id="{{ product.id }}"
   data-variant-id="{{ product.selected_or_first_available_variant.id }}"
 >
-  <button
-    type="button"
-    class="wl-btn"
-    data-wl-toggle
-    data-product-id="{{ product.id }}"
-    data-variant-id="{{ product.selected_or_first_available_variant.id }}"
-    aria-pressed="false"
-  >
-    <span class="wl-text" data-wl-label>Add to wishlist</span>
-  </button>
+ <button
+  type="button"
+  class="wl-btn"
+  data-product-id="{{ product.id }}"
+  data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+  aria-pressed="false"
+>
+  <span class="wl-text" data-wl-label>Add to wishlist</span>
+</button>
 </div>
 
 <a href="/pages/wishlist" class="wishlist-ui wl-floating-link" id="wl-floating-link" aria-label="Open wishlist page">
-  <span class="wl-floating-heart">❤</span>
-  <span class="wl-floating-count" id="wl-floating-count" data-wl-count>0</span>
+  <span class="wl-floating-heart">♥</span>
+  <span class="wl-floating-count" id="wl-floating-count">0</span>
 </a>
 
 {% comment %}
 Load wishlist.js if not already loaded
 {% endcomment %}
 <script>
-  (function(){
-    var alreadyLoaded =
-      (typeof window.WishlistUI !== "undefined") ||
-      document.querySelector('script[data-wl-script="1"]');
+(function () {
+  var SHOP = (window.Shopify && Shopify.shop) ? String(Shopify.shop) : "";
+  var CUSTOMER_KEY = "wl_guest_id";
+  var FLOATING_ID = "wl-floating-link";
+  var COUNT_ID = "wl-floating-count";
 
-    if (!alreadyLoaded) {
-      var s = document.createElement("script");
-      s.src = {{ 'wishlist.js' | asset_url | json }};
-      s.defer = true;
-      s.setAttribute("data-wl-script", "1");
-      document.head.appendChild(s);
+  function getCustomerId() {
+    if (typeof window.wishlistCustomerId !== "undefined" && window.wishlistCustomerId) {
+      return String(window.wishlistCustomerId);
     }
 
-    function updateFloatingIcon() {
-      var countEl = document.getElementById("wl-floating-count");
-      var linkEl = document.getElementById("wl-floating-link");
-      if (!countEl || !linkEl) return;
-
-      var count = parseInt(countEl.textContent || "0", 10) || 0;
-
-      if (count > 0) {
-        linkEl.classList.add("wl-show");
-        countEl.classList.add("wl-show");
-      } else {
-        linkEl.classList.remove("wl-show");
-        countEl.classList.remove("wl-show");
-      }
+    var guest = localStorage.getItem(CUSTOMER_KEY);
+    if (!guest) {
+      guest = "guest:" + Date.now() + "-" + Math.random().toString(16).slice(2);
+      localStorage.setItem(CUSTOMER_KEY, guest);
     }
+    return guest;
+  }
 
-    function syncButtonText() {
-      document.querySelectorAll('.wl-btn[data-wl-toggle]').forEach(function(btn) {
-        var label = btn.querySelector('[data-wl-label]');
-        if (!label) return;
+  function getButtons() {
+    return document.querySelectorAll(".wl-btn[data-product-id][data-variant-id]");
+  }
 
-        if (btn.classList.contains('is-active') || btn.getAttribute('aria-pressed') === 'true') {
-          label.textContent = 'Wishlisted';
-        } else {
-          label.textContent = 'Add to wishlist';
+  async function apiList() {
+    try {
+      var customerId = getCustomerId();
+      var url = "/apps/wishlist/list?shop=" + encodeURIComponent(SHOP) + "&customerId=" + encodeURIComponent(customerId);
+      var res = await fetch(url, {
+        credentials: "same-origin",
+        cache: "no-store"
+      });
+      var data = await res.json();
+      return (data && data.items) ? data.items : [];
+    } catch (e) {
+      console.error("wishlist list error", e);
+      return [];
+    }
+  }
+
+  async function apiToggle(productId, variantId) {
+    try {
+      var customerId = getCustomerId();
+
+      var res = await fetch("/apps/wishlist/toggle?shop=" + encodeURIComponent(SHOP), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+        },
+        credentials: "same-origin",
+        body: new URLSearchParams({
+          customerId: customerId,
+          productId: String(productId),
+          variantId: String(variantId)
+        })
+      });
+
+      return await res.json();
+    } catch (e) {
+      console.error("wishlist toggle error", e);
+      return { ok: false };
+    }
+  }
+
+  function setFloatingCount(count) {
+    var floating = document.getElementById(FLOATING_ID);
+    var badge = document.getElementById(COUNT_ID);
+
+    if (!floating || !badge) return;
+
+    badge.textContent = String(count);
+
+    if (count > 0) {
+      floating.classList.add("wl-show");
+      badge.classList.add("wl-show");
+    } else {
+      floating.classList.remove("wl-show");
+      badge.classList.remove("wl-show");
+    }
+  }
+
+  function setButtonState(btn, active) {
+    var label = btn.querySelector("[data-wl-label]") || btn.querySelector(".wl-text");
+
+    if (active) {
+      btn.classList.add("is-active");
+      btn.setAttribute("aria-pressed", "true");
+      if (label) label.textContent = "Wishlisted";
+    } else {
+      btn.classList.remove("is-active");
+      btn.setAttribute("aria-pressed", "false");
+      if (label) label.textContent = "Add to wishlist";
+    }
+  }
+
+  async function syncWishlistUI() {
+    var items = await apiList();
+    var variantMap = {};
+
+    items.forEach(function (item) {
+      variantMap[String(item.variantId)] = true;
+    });
+
+    getButtons().forEach(function (btn) {
+      var variantId = String(btn.getAttribute("data-variant-id") || "");
+      setButtonState(btn, !!variantMap[variantId]);
+    });
+
+    setFloatingCount(items.length);
+  }
+
+  function bindButtons() {
+    getButtons().forEach(function (btn) {
+      if (btn.dataset.wlBound === "true") return;
+      btn.dataset.wlBound = "true";
+
+      btn.addEventListener("click", async function (e) {
+        e.preventDefault();
+
+        var productId = btn.getAttribute("data-product-id");
+        var variantId = btn.getAttribute("data-variant-id");
+
+        if (!productId || !variantId) return;
+
+        btn.disabled = true;
+
+        try {
+          var result = await apiToggle(productId, variantId);
+
+          if (!result || !result.ok) {
+            console.error("wishlist toggle failed", result);
+          }
+
+          await syncWishlistUI();
+        } finally {
+          btn.disabled = false;
         }
       });
-    }
-
-    function waitForWishlistAndSync() {
-      var tries = 0;
-
-      var timer = setInterval(function() {
-        tries++;
-
-        syncButtonText();
-        updateFloatingIcon();
-
-        if (window.WishlistUI && typeof window.WishlistUI.sync === 'function') {
-          window.WishlistUI.sync().then(function() {
-            syncButtonText();
-            updateFloatingIcon();
-          }).catch(function(){});
-        }
-
-        if (tries > 20) {
-          clearInterval(timer);
-        }
-      }, 500);
-    }
-
-    document.addEventListener('click', function(e) {
-      var btn = e.target.closest('[data-wl-toggle]');
-      if (!btn) return;
-
-      setTimeout(function() {
-        if (window.WishlistUI && typeof window.WishlistUI.sync === 'function') {
-          window.WishlistUI.sync().then(function() {
-            syncButtonText();
-            updateFloatingIcon();
-          }).catch(function(){});
-        } else {
-          syncButtonText();
-          updateFloatingIcon();
-        }
-      }, 700);
     });
+  }
 
-    document.addEventListener('DOMContentLoaded', function() {
-      waitForWishlistAndSync();
-    });
+  function init() {
+    bindButtons();
+    syncWishlistUI();
+  }
 
-    if (document.readyState !== 'loading') {
-      waitForWishlistAndSync();
-    }
-
-    var observer = new MutationObserver(function() {
-      updateFloatingIcon();
-      syncButtonText();
-    });
-
-    window.addEventListener('load', function() {
-      var countEl = document.getElementById('wl-floating-count');
-      if (countEl) {
-        observer.observe(countEl, { childList: true, subtree: true, characterData: true });
-      }
-
-      setTimeout(function() {
-        syncButtonText();
-        updateFloatingIcon();
-      }, 1200);
-    });
-  })();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
 </script>
 
 {% schema %}
