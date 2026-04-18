@@ -1,4 +1,4 @@
-import prisma from "../../db.server";
+import prisma from "../db.server.js";
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
