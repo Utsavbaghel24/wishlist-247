@@ -335,12 +335,18 @@
         return;
       }
 
-      if (result && result.ok) {
-        await syncAll();
-        showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
-      } else {
-        showToast("Add to wishlist failed", true);
-      }
+   if (result && result.ok) {
+  await syncAll();
+  showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
+} else {
+  console.error("Wishlist toggle failed:", result);
+  showToast(
+    result && result.error
+      ? String(result.error).slice(0, 120)
+      : "Add to wishlist failed",
+    true
+  );
+}
     } catch (err) {
       showToast("Something went wrong", true);
     } finally {
