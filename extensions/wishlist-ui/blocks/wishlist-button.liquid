@@ -1,4 +1,5 @@
-<div class="wl-block" 
+<div
+  class="wishlist-ui wl-block"
   data-product-id="{{ product.id }}"
   data-variant-id="{{ product.selected_or_first_available_variant.id }}"
   data-product-title="{{ product.title | escape }}"
@@ -9,10 +10,12 @@
   <button
     type="button"
     class="wl-btn"
+    data-wl-toggle
     data-product-id="{{ product.id }}"
     data-variant-id="{{ product.selected_or_first_available_variant.id }}"
+    aria-pressed="false"
   >
-    <span class="wl-text">Add to wishlist</span>
+    <span class="wl-text" data-wl-label>Add to wishlist</span>
   </button>
 </div>
 
@@ -49,6 +52,7 @@
     color: #ffffff;
   }
 
+  .wl-btn.is-active,
   .wl-btn.wl-added {
     background: #17324d;
     color: #ffffff;
@@ -58,6 +62,11 @@
   .wl-btn:focus {
     outline: none;
     box-shadow: 0 0 0 3px rgba(23, 50, 77, 0.12);
+  }
+
+  .wl-btn.wl-loading {
+    opacity: 0.75;
+    pointer-events: none;
   }
 
   .wl-floating {
@@ -259,48 +268,107 @@
 </style>
 
 <script>
-(function() {
-  const STORAGE_KEY = 'wl_guest_v2';
+(function () {
+  function escapeHtml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
 
-  function getWishlist() {
+  function getShopDomain() {
+    if (window.WishlistUI && typeof window.WishlistUI.getShop === "function") {
+      return window.WishlistUI.getShop();
+    }
+    if (window.Shopify && window.Shopify.shop) {
+      return String(window.Shopify.shop);
+    }
+    return "";
+  }
+
+  function withShop(url) {
+    var shop = getShopDomain();
+    if (!shop) return url;
+    var sep = url.indexOf("?") === -1 ? "?" : "&";
+    return url + sep + "shop=" + encodeURIComponent(shop);
+  }
+
+  async function getCustomerIdForUI() {
+    if (window.WishlistUI && typeof window.WishlistUI.resolveCustomerIdForUI === "function") {
+      return await window.WishlistUI.resolveCustomerIdForUI();
+    }
+    if (window.WishlistUI && typeof window.WishlistUI.getCustomerId === "function") {
+      return window.WishlistUI.getCustomerId();
+    }
+    return null;
+  }
+
+  async function apiList(customerId) {
+    if (!customerId) return { items: [] };
+
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      var res = await fetch(
+        withShop("/apps/wishlist/list?customerId=" + encodeURIComponent(String(customerId))),
+        {
+          credentials: "same-origin",
+          cache: "no-store"
+        }
+      );
+
+      if (!res.ok) return { items: [] };
+
+      var data = await res.json();
+      return data || { items: [] };
     } catch (e) {
-      return [];
+      return { items: [] };
     }
   }
 
-  function setWishlist(items) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }
+  async function apiToggle(productId, variantId) {
+    var customerId = await getCustomerIdForUI();
+    if (!customerId) return { ok: false };
 
-  function escapeHtml(str) {
-    return String(str || '')
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    try {
+      var res = await fetch(withShop("/apps/wishlist/toggle"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
+        },
+        credentials: "same-origin",
+        body: new URLSearchParams({
+          customerId: String(customerId),
+          productId: String(productId),
+          variantId: String(variantId)
+        })
+      });
+
+      var data = await res.json();
+      return data || { ok: false };
+    } catch (e) {
+      return { ok: false };
+    }
   }
 
   function ensureFloatingUI() {
-    if (!document.getElementById('wl-floating')) {
-      const floating = document.createElement('div');
-      floating.className = 'wl-floating';
-      floating.id = 'wl-floating';
+    if (!document.getElementById("wl-floating")) {
+      var floating = document.createElement("div");
+      floating.className = "wl-floating";
+      floating.id = "wl-floating";
       floating.innerHTML = `
         <button type="button" class="wl-floating-btn" id="wl-floating-btn" aria-label="Open wishlist">
           ❤
-          <span class="wl-floating-count" id="wl-floating-count">0</span>
+          <span class="wl-floating-count" id="wl-floating-count" data-wl-count>0</span>
         </button>
       `;
       document.body.appendChild(floating);
     }
 
-    if (!document.getElementById('wl-drawer')) {
-      const drawer = document.createElement('div');
-      drawer.className = 'wl-drawer';
-      drawer.id = 'wl-drawer';
+    if (!document.getElementById("wl-drawer")) {
+      var drawer = document.createElement("div");
+      drawer.className = "wl-drawer";
+      drawer.id = "wl-drawer";
       drawer.innerHTML = `
         <div class="wl-drawer-header">
           <h3 class="wl-drawer-title">My Wishlist</h3>
@@ -311,180 +379,152 @@
       document.body.appendChild(drawer);
     }
 
-    const floatingBtn = document.getElementById('wl-floating-btn');
-    const drawer = document.getElementById('wl-drawer');
-    const drawerClose = document.getElementById('wl-drawer-close');
+    var floatingBtn = document.getElementById("wl-floating-btn");
+    var drawer = document.getElementById("wl-drawer");
+    var drawerClose = document.getElementById("wl-drawer-close");
 
     if (floatingBtn && !floatingBtn.dataset.bound) {
-      floatingBtn.dataset.bound = 'true';
-      floatingBtn.addEventListener('click', function() {
-        renderWishlistDrawer();
-        drawer.classList.toggle('wl-open');
+      floatingBtn.dataset.bound = "true";
+      floatingBtn.addEventListener("click", async function () {
+        await renderWishlistDrawer();
+        drawer.classList.toggle("wl-open");
       });
     }
 
     if (drawerClose && !drawerClose.dataset.bound) {
-      drawerClose.dataset.bound = 'true';
-      drawerClose.addEventListener('click', function() {
-        drawer.classList.remove('wl-open');
+      drawerClose.dataset.bound = "true";
+      drawerClose.addEventListener("click", function () {
+        drawer.classList.remove("wl-open");
       });
     }
 
     if (!document.body.dataset.wlOutsideClickBound) {
-      document.body.dataset.wlOutsideClickBound = 'true';
-      document.addEventListener('click', function(event) {
-        const drawerEl = document.getElementById('wl-drawer');
-        const floatingEl = document.getElementById('wl-floating');
+      document.body.dataset.wlOutsideClickBound = "true";
+      document.addEventListener("click", function (event) {
+        var drawerEl = document.getElementById("wl-drawer");
+        var floatingEl = document.getElementById("wl-floating");
 
         if (!drawerEl || !floatingEl) return;
-        if (!drawerEl.classList.contains('wl-open')) return;
+        if (!drawerEl.classList.contains("wl-open")) return;
 
-        const clickedInsideDrawer = drawerEl.contains(event.target);
-        const clickedFloating = floatingEl.contains(event.target);
+        var clickedInsideDrawer = drawerEl.contains(event.target);
+        var clickedFloating = floatingEl.contains(event.target);
 
         if (!clickedInsideDrawer && !clickedFloating) {
-          drawerEl.classList.remove('wl-open');
+          drawerEl.classList.remove("wl-open");
         }
       });
     }
   }
 
-  function updateFloatingState() {
-    const items = getWishlist();
-    const floating = document.getElementById('wl-floating');
-    const count = document.getElementById('wl-floating-count');
+  function updateFloatingState(count) {
+    var floating = document.getElementById("wl-floating");
+    var countEl = document.getElementById("wl-floating-count");
 
-    if (!floating || !count) return;
+    if (!floating || !countEl) return;
 
-    count.textContent = items.length;
+    countEl.textContent = String(count || 0);
 
-    if (items.length > 0) {
-      floating.classList.add('wl-show');
+    if (count > 0) {
+      floating.classList.add("wl-show");
     } else {
-      floating.classList.remove('wl-show');
-      const drawer = document.getElementById('wl-drawer');
-      if (drawer) drawer.classList.remove('wl-open');
+      floating.classList.remove("wl-show");
+      var drawer = document.getElementById("wl-drawer");
+      if (drawer) drawer.classList.remove("wl-open");
     }
   }
 
-  function renderWishlistDrawer() {
-    const body = document.getElementById('wl-drawer-body');
+  async function renderWishlistDrawer() {
+    var body = document.getElementById("wl-drawer-body");
     if (!body) return;
 
-    const items = getWishlist();
+    var customerId = await getCustomerIdForUI();
+    var data = await apiList(customerId);
+    var items = (data && data.items) || [];
+
+    updateFloatingState(items.length);
 
     if (!items.length) {
-      body.innerHTML = `<div class="wl-empty">Your wishlist is empty.</div>`;
+      body.innerHTML = '<div class="wl-empty">Your wishlist is empty.</div>';
       return;
     }
 
-    body.innerHTML = items.map(item => `
-      <div class="wl-item">
-        <div class="wl-item-image">
-          ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.title)}">` : ''}
+    body.innerHTML = items.map(function (item) {
+      return `
+        <div class="wl-item">
+          <div class="wl-item-image">
+            ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.title || "Product")}">` : ""}
+          </div>
+          <div class="wl-item-info">
+            <a class="wl-item-title" href="${item.url || "#"}">${escapeHtml(item.title || "Product")}</a>
+            <div class="wl-item-price">${escapeHtml(item.price || "")}</div>
+          </div>
+          <button
+            type="button"
+            class="wl-remove"
+            data-remove-product-id="${item.productId}"
+            data-remove-variant-id="${item.variantId}"
+          >
+            Remove
+          </button>
         </div>
-        <div class="wl-item-info">
-          <a class="wl-item-title" href="${item.url || '#'}">${escapeHtml(item.title || 'Product')}</a>
-          <div class="wl-item-price">${escapeHtml(item.price || '')}</div>
-        </div>
-        <button 
-          type="button" 
-          class="wl-remove" 
-          data-remove-product-id="${item.productId}" 
-          data-remove-variant-id="${item.variantId}"
-        >
-          Remove
-        </button>
-      </div>
-    `).join('');
+      `;
+    }).join("");
 
-    body.querySelectorAll('.wl-remove').forEach(removeBtn => {
-      removeBtn.addEventListener('click', function() {
-        const productId = this.getAttribute('data-remove-product-id');
-        const variantId = this.getAttribute('data-remove-variant-id');
+    body.querySelectorAll(".wl-remove").forEach(function (removeBtn) {
+      removeBtn.addEventListener("click", async function () {
+        var productId = this.getAttribute("data-remove-product-id");
+        var variantId = this.getAttribute("data-remove-variant-id");
 
-        const updated = getWishlist().filter(item => {
-          return !(String(item.productId) === String(productId) && String(item.variantId) === String(variantId));
-        });
+        await apiToggle(productId, variantId);
 
-        setWishlist(updated);
-        updateFloatingState();
-        renderWishlistDrawer();
-        syncAllButtons();
-      });
-    });
-  }
-
-  function syncAllButtons() {
-    document.querySelectorAll('.wl-block').forEach(block => {
-      const btn = block.querySelector('.wl-btn');
-      if (!btn) return;
-
-      const productId = String(block.dataset.productId || '');
-      const variantId = String(block.dataset.variantId || '');
-
-      const exists = getWishlist().some(item => 
-        String(item.productId) === productId && String(item.variantId) === variantId
-      );
-
-      const textEl = btn.querySelector('.wl-text');
-
-      if (exists) {
-        btn.classList.add('wl-added');
-        if (textEl) textEl.textContent = 'Wishlisted';
-      } else {
-        btn.classList.remove('wl-added');
-        if (textEl) textEl.textContent = 'Add to wishlist';
-      }
-    });
-  }
-
-  function initWishlistButtons() {
-    document.querySelectorAll('.wl-block').forEach(block => {
-      const btn = block.querySelector('.wl-btn');
-      if (!btn || btn.dataset.bound === 'true') return;
-
-      btn.dataset.bound = 'true';
-
-      btn.addEventListener('click', function() {
-        const productData = {
-          productId: String(block.dataset.productId || ''),
-          variantId: String(block.dataset.variantId || ''),
-          title: block.dataset.productTitle || '',
-          url: block.dataset.productUrl || '',
-          price: block.dataset.productPrice || '',
-          image: block.dataset.productImage || ''
-        };
-
-        const current = getWishlist();
-        const exists = current.some(item =>
-          String(item.productId) === productData.productId &&
-          String(item.variantId) === productData.variantId
-        );
-
-        let next;
-        if (exists) {
-          next = current.filter(item =>
-            !(String(item.productId) === productData.productId &&
-              String(item.variantId) === productData.variantId)
-          );
-        } else {
-          next = [...current, productData];
+        if (window.WishlistUI && typeof window.WishlistUI.sync === "function") {
+          await window.WishlistUI.sync();
         }
 
-        setWishlist(next);
-        syncAllButtons();
-        updateFloatingState();
-        renderWishlistDrawer();
+        await renderWishlistDrawer();
       });
     });
   }
 
-  ensureFloatingUI();
-  initWishlistButtons();
-  syncAllButtons();
-  updateFloatingState();
-  renderWishlistDrawer();
+  function bindLocalButtonState() {
+    document.querySelectorAll(".wl-btn[data-wl-toggle]").forEach(function (btn) {
+      if (btn.dataset.wlLocalBound === "true") return;
+      btn.dataset.wlLocalBound = "true";
+
+      btn.addEventListener("click", function () {
+        btn.classList.add("wl-loading");
+
+        setTimeout(async function () {
+          btn.classList.remove("wl-loading");
+
+          if (window.WishlistUI && typeof window.WishlistUI.sync === "function") {
+            await window.WishlistUI.sync();
+          }
+
+          await renderWishlistDrawer();
+        }, 500);
+      });
+    });
+  }
+
+  async function initWishlistDrawerUI() {
+    ensureFloatingUI();
+    bindLocalButtonState();
+
+    setTimeout(async function () {
+      if (window.WishlistUI && typeof window.WishlistUI.sync === "function") {
+        await window.WishlistUI.sync();
+      }
+      await renderWishlistDrawer();
+    }, 700);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initWishlistDrawerUI);
+  } else {
+    initWishlistDrawerUI();
+  }
 })();
 </script>
 
