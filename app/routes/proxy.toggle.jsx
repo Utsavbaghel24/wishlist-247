@@ -20,8 +20,6 @@ function timingSafeEqual(a, b) {
   return crypto.timingSafeEqual(ab, bb);
 }
 
-// Allow POST without signature during dev.
-// If signature exists, verify it.
 function verifyProxySignature(requestUrl) {
   const u = new URL(requestUrl);
   const params = new URLSearchParams(u.search);
@@ -42,13 +40,6 @@ function verifyProxySignature(requestUrl) {
   return timingSafeEqual(digest, signature);
 }
 
-/**
- * App Proxy-safe shop resolver:
- * - Prefer query param (?shop=...)
- * - Then Shopify header (x-shopify-shop-domain)
- * - Then x-forwarded-host if it contains .myshopify.com
- * - NEVER use tunnel host
- */
 function getShop(request) {
   const url = new URL(request.url);
 
@@ -73,27 +64,43 @@ async function readBody(request) {
   return Object.fromEntries(new URLSearchParams(text));
 }
 
-export async function action({ request }) {
+function readQuery(request) {
+  const url = new URL(request.url);
+  return {
+    customerId: url.searchParams.get("customerId") || "guest",
+    productId: url.searchParams.get("productId") || "",
+    variantId: url.searchParams.get("variantId") || "",
+  };
+}
+
+async function handleToggle(request, source = "POST") {
   try {
     if (!verifyProxySignature(request.url)) {
-      // storefront-safe
       return json({ ok: false, error: "Invalid signature" }, 200);
     }
 
     const shop = getShop(request);
     if (!shop) {
-      // storefront-safe: never 400/500
       return json({ ok: false, error: "Missing shop" }, 200);
     }
 
-    const body = await readBody(request);
+    const input =
+      request.method === "GET" ? readQuery(request) : await readBody(request);
 
-    const customerId = String(body.customerId || "guest");
-    const productId = String(body.productId || "");
-    const variantId = String(body.variantId || "");
+    const customerId = String(input.customerId || "guest");
+    const productId = String(input.productId || "");
+    const variantId = String(input.variantId || "");
 
     if (!productId || !variantId) {
-      return json({ ok: false, error: "Missing productId or variantId" }, 200);
+      return json(
+        {
+          ok: false,
+          error: "Missing productId or variantId",
+          method: request.method,
+          source,
+        },
+        200
+      );
     }
 
     const key = {
@@ -108,7 +115,18 @@ export async function action({ request }) {
 
     if (existing) {
       await prisma.wishlistItem.delete({ where: { id: existing.id } });
-      return json({ ok: true, wishlisted: false }, 200);
+      return json(
+        {
+          ok: true,
+          wishlisted: false,
+          action: "removed",
+          customerId,
+          productId,
+          variantId,
+          shop,
+        },
+        200
+      );
     }
 
     await prisma.wishlistItem.create({
@@ -120,10 +138,28 @@ export async function action({ request }) {
       },
     });
 
-    return json({ ok: true, wishlisted: true }, 200);
+    return json(
+      {
+        ok: true,
+        wishlisted: true,
+        action: "added",
+        customerId,
+        productId,
+        variantId,
+        shop,
+      },
+      200
+    );
   } catch (e) {
     console.error("TOGGLE ERROR:", e);
-    // storefront-safe
     return json({ ok: false, error: e?.message || "Server error" }, 200);
   }
+}
+
+export async function loader({ request }) {
+  return handleToggle(request, "GET");
+}
+
+export async function action({ request }) {
+  return handleToggle(request, "POST");
 }

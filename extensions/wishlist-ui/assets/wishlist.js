@@ -174,27 +174,23 @@
 
 async function apiToggle(customerId, productId, variantId) {
   try {
-    var url = withShop("/apps/wishlist/toggle");
-
-    console.log("Wishlist toggle request:", {
-      url: url,
+    var params = new URLSearchParams({
       customerId: String(customerId),
       productId: String(productId),
       variantId: String(variantId),
     });
 
+    var url = withShop("/apps/wishlist/toggle?" + params.toString());
+
+    console.log("Wishlist toggle GET:", url);
+
     var res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "Accept": "application/json"
-      },
+      method: "GET",
       credentials: "same-origin",
-      body: new URLSearchParams({
-        customerId: String(customerId),
-        productId: String(productId),
-        variantId: String(variantId),
-      }),
+      cache: "no-store",
+      headers: {
+        "Accept": "application/json"
+      }
     });
 
     var text = await res.text();
@@ -204,20 +200,14 @@ async function apiToggle(customerId, productId, variantId) {
     try {
       data = text ? JSON.parse(text) : null;
     } catch (e) {
-      console.error("Wishlist toggle JSON parse failed:", e);
+      console.error("Wishlist toggle parse failed:", e);
+      return { ok: false, error: "Non-JSON response" };
     }
 
     console.log("Wishlist toggle parsed response:", data);
 
     if (res.status === 402) return { ok: false, billingRequired: true };
-
-    if (!res.ok) {
-      return {
-        ok: false,
-        status: res.status,
-        error: data || text || "Request failed"
-      };
-    }
+    if (!res.ok) return { ok: false, error: data?.error || "Request failed" };
 
     return data || { ok: false, error: "Empty response" };
   } catch (e) {
