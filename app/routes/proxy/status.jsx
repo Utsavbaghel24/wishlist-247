@@ -22,9 +22,10 @@ export async function loader({ request }) {
       active: true,
     });
   } catch (e) {
+    console.error("STATUS ERROR:", e);
     return json({
       ok: false,
       error: e?.message || "Server error",
-    });
+    }, 500);
   }
 }

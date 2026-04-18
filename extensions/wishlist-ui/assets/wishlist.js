@@ -167,7 +167,6 @@
       });
 
 var url = withShop("/apps/wishlist/toggle?" + params.toString());
-
       var res = await fetch(url, {
         method: "GET",
         credentials: "same-origin",

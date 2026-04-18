@@ -13,7 +13,6 @@ function json(data, status = 200) {
 export async function loader({ request }) {
   try {
     const url = new URL(request.url);
-
     const shop = url.searchParams.get("shop") || "";
     const customerId = url.searchParams.get("customerId") || "guest";
 
@@ -29,16 +28,13 @@ export async function loader({ request }) {
       orderBy: { createdAt: "desc" },
     });
 
-    return json({
-      ok: true,
-      items,
-    });
+    return json({ ok: true, items });
   } catch (e) {
     console.error("LIST ERROR:", e);
     return json({
       ok: false,
       items: [],
       error: e?.message || "Server error",
-    });
+    }, 500);
   }
 }
