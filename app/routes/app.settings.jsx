@@ -15,8 +15,8 @@ import {
 } from "@shopify/polaris";
 
 import prisma from "../db.server";
-import { authenticate, WISHLIST_PLAN } from "../shopify.server";
-
+import { authenticate } from "../shopify.server";
+import { WISHLIST_PLAN } from "../billing.plan";
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
