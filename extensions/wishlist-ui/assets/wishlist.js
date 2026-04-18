@@ -1,12 +1,3 @@
-/* wishlist.js – FINAL FRONTEND FIXED
-   - proxy-safe
-   - shop-aware
-   - guest + customer support
-   - merge-safe
-   - floating icon count update
-   - toast notifications
-   - button state sync
-*/
 (function () {
   "use strict";
 
@@ -102,11 +93,6 @@
       }
     }
 
-    var floating = document.getElementById("wl-floating-link");
-    if (floating) {
-      floating.classList.add("wl-show");
-    }
-
     document.dispatchEvent(
       new CustomEvent("wishlist:count-updated", {
         detail: { count: count },
@@ -166,55 +152,46 @@
         return { ok: true, active: true };
       }
 
-      return { ok: true, active: true, reason: "fallback" };
+      return { ok: true, active: true };
     } catch (e) {
-      return { ok: true, active: true, reason: "fallback-error" };
+      return { ok: true, active: true };
     }
   }
 
-async function apiToggle(customerId, productId, variantId) {
-  try {
-    var params = new URLSearchParams({
-      customerId: String(customerId),
-      productId: String(productId),
-      variantId: String(variantId),
-    });
-
-    var url = withShop("/apps/wishlist/toggle?" + params.toString());
-
-    console.log("Wishlist toggle GET:", url);
-
-    var res = await fetch(url, {
-      method: "GET",
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: {
-        "Accept": "application/json"
-      }
-    });
-
-    var text = await res.text();
-    console.log("Wishlist toggle raw response:", text);
-
-    var data = null;
+  async function apiToggle(customerId, productId, variantId) {
     try {
-      data = text ? JSON.parse(text) : null;
+      var params = new URLSearchParams({
+        customerId: String(customerId),
+        productId: String(productId),
+        variantId: String(variantId),
+      });
+
+      var url = withShop("/apps/wishlist/toggle?" + params.toString());
+
+      var res = await fetch(url, {
+        method: "GET",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+
+      var text = await res.text();
+
+      var data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch (e) {
+        return { ok: false, error: "Wishlist API returned HTML instead of JSON" };
+      }
+
+      if (res.status === 402) return { ok: false, billingRequired: true };
+      if (!res.ok) return { ok: false, error: data?.error || "Request failed" };
+
+      return data || { ok: false, error: "Empty response" };
     } catch (e) {
-      console.error("Wishlist toggle parse failed:", e);
-      return { ok: false, error: "Non-JSON response" };
+      return { ok: false, error: e.message || "Unknown error" };
     }
-
-    console.log("Wishlist toggle parsed response:", data);
-
-    if (res.status === 402) return { ok: false, billingRequired: true };
-    if (!res.ok) return { ok: false, error: data?.error || "Request failed" };
-
-    return data || { ok: false, error: "Empty response" };
-  } catch (e) {
-    console.error("apiToggle error:", e);
-    return { ok: false, error: e.message || "Unknown error" };
   }
-}
 
   async function apiList(customerId) {
     var res = await fetch(
@@ -350,7 +327,6 @@ async function apiToggle(customerId, productId, variantId) {
       await mergeIfNeeded();
 
       var wasActive = btn.classList.contains("is-active");
-
       var result = await apiToggle(getActiveCustomerId(), productId, variantId);
 
       if (result && result.billingRequired) {
@@ -360,19 +336,12 @@ async function apiToggle(customerId, productId, variantId) {
       }
 
       if (result && result.ok) {
-  await syncAll();
-  showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
-} else {
-  console.error("Wishlist toggle failed result:", result);
-  showToast(
-    result && result.error
-      ? "Wishlist error: " + String(result.error).slice(0, 80)
-      : "Could not update wishlist",
-    true
-  );
-}
+        await syncAll();
+        showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
+      } else {
+        showToast("Add to wishlist failed", true);
+      }
     } catch (err) {
-      console.error("Wishlist failed", err);
       showToast("Something went wrong", true);
     } finally {
       btn.dataset.loading = "0";
@@ -423,6 +392,4 @@ async function apiToggle(customerId, productId, variantId) {
     getShop: getShopDomain,
     toast: showToast,
   };
-
-  console.log("Wishlist.js loaded ✅");
 })();
