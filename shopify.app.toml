@@ -30,4 +30,4 @@ redirect_urls = [
 [app_proxy]
 url = "/proxy"
 prefix = "apps"
-subpath = "wishlist"
+subpath = "wishlist"git add shopify.app.toml
