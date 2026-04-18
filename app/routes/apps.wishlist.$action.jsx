@@ -1,5 +1,5 @@
 // app/routes/apps.wishlist.$action.jsx
-import prisma from "../db.server";
+import prisma from "../db.server.js";
 import { authenticate } from "../shopify.server";
 import { hasActiveWishlistSubscription } from "../billing.server";
 

@@ -14,7 +14,7 @@ import {
   Checkbox,
 } from "@shopify/polaris";
 
-import prisma from "../db.server";
+import prisma from "../db.server.js";
 import { authenticate } from "../shopify.server";
 import { WISHLIST_PLAN } from "../billing.plan";
 function json(data, status = 200) {

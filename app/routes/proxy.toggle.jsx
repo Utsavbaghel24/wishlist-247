@@ -1,41 +1,67 @@
-import prisma from "../db.server";
+import prisma from "../../db.server";
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+}
 
 export async function loader({ request }) {
   try {
     const url = new URL(request.url);
 
-    const shop = url.searchParams.get("shop");
+    const shop = url.searchParams.get("shop") || "";
     const customerId = url.searchParams.get("customerId") || "guest";
-    const productId = url.searchParams.get("productId");
-    const variantId = url.searchParams.get("variantId");
+    const productId = url.searchParams.get("productId") || "";
+    const variantId = url.searchParams.get("variantId") || "";
 
-    if (!shop || !productId || !variantId) {
-      return new Response(JSON.stringify({ ok: false, error: "Missing params" }), {
-        headers: { "Content-Type": "application/json" },
-      });
-    }
+    if (!shop) return json({ ok: false, error: "Missing shop" });
+    if (!productId) return json({ ok: false, error: "Missing productId" });
+    if (!variantId) return json({ ok: false, error: "Missing variantId" });
 
     const existing = await prisma.wishlistItem.findFirst({
-      where: { shop, customerId, variantId },
+      where: {
+        shop: String(shop),
+        customerId: String(customerId),
+        variantId: String(variantId),
+      },
     });
 
     if (existing) {
-      await prisma.wishlistItem.delete({ where: { id: existing.id } });
-      return new Response(JSON.stringify({ ok: true, wishlisted: false }), {
-        headers: { "Content-Type": "application/json" },
+      await prisma.wishlistItem.delete({
+        where: { id: existing.id },
+      });
+
+      return json({
+        ok: true,
+        wishlisted: false,
+        action: "removed",
       });
     }
 
     await prisma.wishlistItem.create({
-      data: { shop, customerId, productId, variantId },
+      data: {
+        shop: String(shop),
+        customerId: String(customerId),
+        productId: String(productId),
+        variantId: String(variantId),
+      },
     });
 
-    return new Response(JSON.stringify({ ok: true, wishlisted: true }), {
-      headers: { "Content-Type": "application/json" },
+    return json({
+      ok: true,
+      wishlisted: true,
+      action: "added",
     });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: e.message }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("TOGGLE ERROR:", e);
+    return json({
+      ok: false,
+      error: e?.message || "Server error",
+    }, 500);
   }
 }

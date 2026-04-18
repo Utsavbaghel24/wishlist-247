@@ -1,4 +1,14 @@
-import prisma from "../db.server";
+import prisma from "../../db.server";
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+}
 
 export async function loader({ request }) {
   try {
@@ -6,16 +16,25 @@ export async function loader({ request }) {
     const shop = url.searchParams.get("shop") || "";
     const customerId = url.searchParams.get("customerId") || "guest";
 
+    if (!shop) {
+      return json({ ok: false, items: [], error: "Missing shop" });
+    }
+
     const items = await prisma.wishlistItem.findMany({
-      where: { shop, customerId },
+      where: {
+        shop: String(shop),
+        customerId: String(customerId),
+      },
+      orderBy: { createdAt: "desc" },
     });
 
-    return new Response(JSON.stringify({ ok: true, items }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return json({ ok: true, items });
   } catch (e) {
-    return new Response(JSON.stringify({ ok: false, error: e.message }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    console.error("LIST ERROR:", e);
+    return json({
+      ok: false,
+      items: [],
+      error: e?.message || "Server error",
+    }, 500);
   }
 }

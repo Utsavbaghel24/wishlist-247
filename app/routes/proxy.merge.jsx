@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { data } from "react-router";
-import prisma from "../db.server";
+import prisma from "../db.server.js";
 
 function timingSafeEqual(a, b) {
   const ab = Buffer.from(String(a), "utf8");

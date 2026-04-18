@@ -1,5 +1,5 @@
 // app/routes/webhooks.jsx
-import prisma from "../db.server";
+import prisma from "../db.server.js";
 import { verifyShopifyWebhook } from "../utils/webhook-verify.server";
 
 function ok(status = 200) {
