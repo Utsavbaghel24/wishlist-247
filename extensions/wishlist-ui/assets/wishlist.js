@@ -248,56 +248,53 @@
     // -------------------------
     // Events: toggle button
     // -------------------------
-    document.addEventListener("click", async function(e) {
-        var node = e.target;
-        while (node && node !== document) {
-            if (node.hasAttribute && node.hasAttribute("data-wl-toggle")) break;
-            node = node.parentNode;
-        }
-        if (!node || node === document) return;
+  document.addEventListener("click", async function (e) {
+  const btn = e.target.closest("[data-wl-toggle]");
+  if (!btn) return;
 
-        var btn = node;
-        e.preventDefault();
+  e.preventDefault();
 
-        if (btn.dataset.loading === "1") return;
-        btn.dataset.loading = "1";
-        btn.disabled = true;
+  const productId = btn.getAttribute("data-product-id");
+  const variantId = btn.getAttribute("data-variant-id");
 
-        try {
-            var st = await apiStatus(); // fail-open
-            if (!st.ok) {
-                disableWishlistUI(st.reason);
-                return;
-            }
+  if (!productId || !variantId) return;
 
-            document.documentElement.classList.add("wishlist-ready");
-            if (st.active) document.documentElement.classList.add("wishlist-paid");
+  btn.classList.add("wl-loading");
 
-            await mergeIfNeeded();
-
-            var result = await apiToggle(
-                getActiveCustomerId(),
-                btn.getAttribute("data-product-id"),
-                btn.getAttribute("data-variant-id")
-            );
-
-            if (result && result.billingRequired) {
-                disableWishlistUI("billing");
-                return;
-            }
-
-            if (result && result.ok) {
-                await syncAll();
-            }
-        } catch (err) {
-            try {
-                console.error("Wishlist failed", err);
-            } catch (_) {}
-        } finally {
-            btn.dataset.loading = "0";
-            btn.disabled = false;
-        }
+  try {
+    const res = await fetch(`/apps/wishlist/toggle`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        productId,
+        variantId,
+      }),
     });
+
+    const data = await res.json();
+
+    if (data.ok) {
+      if (data.wishlisted) {
+        btn.classList.add("is-active");
+        btn.setAttribute("aria-pressed", "true");
+      } else {
+        btn.classList.remove("is-active");
+        btn.setAttribute("aria-pressed", "false");
+      }
+
+      // 🔥 Refresh count + UI
+      if (window.WishlistUI && typeof window.WishlistUI.sync === "function") {
+        await window.WishlistUI.sync();
+      }
+    }
+  } catch (err) {
+    console.error("Wishlist toggle error:", err);
+  }
+
+  btn.classList.remove("wl-loading");
+});
 
     // -------------------------
     // Init
