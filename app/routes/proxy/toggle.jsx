@@ -10,23 +10,26 @@ function json(data, status = 200) {
   });
 }
 
-function readQuery(request) {
-  const url = new URL(request.url);
-  return {
-    shop: url.searchParams.get("shop") || "",
-    customerId: url.searchParams.get("customerId") || "guest",
-    productId: url.searchParams.get("productId") || "",
-    variantId: url.searchParams.get("variantId") || "",
-  };
-}
-
 export async function loader({ request }) {
   try {
-    const { shop, customerId, productId, variantId } = readQuery(request);
+    const url = new URL(request.url);
 
-    if (!shop) return json({ ok: false, error: "Missing shop" });
-    if (!productId) return json({ ok: false, error: "Missing productId" });
-    if (!variantId) return json({ ok: false, error: "Missing variantId" });
+    const shop = url.searchParams.get("shop") || "";
+    const customerId = url.searchParams.get("customerId") || "guest";
+    const productId = url.searchParams.get("productId") || "";
+    const variantId = url.searchParams.get("variantId") || "";
+
+    if (!shop) {
+      return json({ ok: false, error: "Missing shop" });
+    }
+
+    if (!productId) {
+      return json({ ok: false, error: "Missing productId" });
+    }
+
+    if (!variantId) {
+      return json({ ok: false, error: "Missing variantId" });
+    }
 
     const existing = await prisma.wishlistItem.findFirst({
       where: {

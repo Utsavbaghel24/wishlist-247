@@ -18,7 +18,7 @@ export async function loader({ request }) {
     const customerId = url.searchParams.get("customerId") || "guest";
 
     if (!shop) {
-      return json({ ok: false, error: "Missing shop", items: [] });
+      return json({ ok: false, items: [], error: "Missing shop" });
     }
 
     const items = await prisma.wishlistItem.findMany({
@@ -37,8 +37,8 @@ export async function loader({ request }) {
     console.error("LIST ERROR:", e);
     return json({
       ok: false,
-      error: e?.message || "Server error",
       items: [],
+      error: e?.message || "Server error",
     });
   }
 }
