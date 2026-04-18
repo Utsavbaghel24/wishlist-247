@@ -19,16 +19,12 @@ export async function loader({ request }) {
     const productId = String(url.searchParams.get("productId") || "");
     const variantId = String(url.searchParams.get("variantId") || "");
 
-    if (!shop) {
-      return json({ ok: false, error: "Missing shop" }, 200);
-    }
+    if (!shop) return json({ ok: false, error: "Missing shop" });
+    if (!productId) return json({ ok: false, error: "Missing productId" });
+    if (!variantId) return json({ ok: false, error: "Missing variantId" });
 
-    if (!productId) {
-      return json({ ok: false, error: "Missing productId" }, 200);
-    }
-
-    if (!variantId) {
-      return json({ ok: false, error: "Missing variantId" }, 200);
+    if (!prisma || !prisma.wishlistItem) {
+      return json({ ok: false, error: "Prisma client not loaded" }, 500);
     }
 
     const existing = await prisma.wishlistItem.findFirst({
