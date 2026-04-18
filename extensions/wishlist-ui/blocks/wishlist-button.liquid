@@ -1,25 +1,38 @@
 {% comment %}
-Self-contained Product Wishlist Button
-- No dependency on external frontend wishlist.js for button behavior
-- Uses working backend proxy routes:
-  /apps/wishlist/list
-  /apps/wishlist/toggle
-- Floating icon links to /pages/wishlist
+Wishlist Button Block
+- Works with assets/wishlist.js
+- Floating wishlist icon on bottom right
+- Clean premium styling
+- No duplicate inline wishlist logic here
 {% endcomment %}
 
 <script>
   window.wishlistCustomerId = {{ customer.id | json }};
+  window.WISHLIST_SHOP = {{ shop.permanent_domain | json }};
 </script>
 
-<div class="wl-block">
+<div class="wishlist-ui wl-block">
   <button
     type="button"
     class="wl-btn"
+    data-wl-toggle
     data-product-id="{{ product.id }}"
     data-variant-id="{{ product.selected_or_first_available_variant.id }}"
     aria-pressed="false"
+    aria-label="Add to wishlist"
   >
-    <span class="wl-text">Add to wishlist</span>
+    <span class="wl-btn-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none">
+        <path
+          d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </svg>
+    </span>
+    <span class="wl-btn-text" data-wl-label>Add to wishlist</span>
   </button>
 </div>
 
@@ -29,30 +42,35 @@ Self-contained Product Wishlist Button
   id="wl-floating-link"
   aria-label="Open wishlist"
 >
-  <span class="wl-floating-heart">♥</span>
-  <span class="wl-floating-count" id="wl-floating-count">0</span>
+  <span class="wl-floating-heart" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5C2 5.42 4.42 3 7.5 3C9.24 3 10.91 3.81 12 5.09C13.09 3.81 14.76 3 16.5 3C19.58 3 22 5.42 22 8.5C22 12.28 18.6 15.36 13.45 20.04L12 21.35Z"/>
+    </svg>
+  </span>
+  <span class="wl-floating-count" data-wl-count style="display:none;">0</span>
 </a>
 
 <style>
   .wl-block {
     width: 100%;
-    margin-top: 16px;
+    margin-top: 18px;
   }
 
   .wl-btn {
     width: 100%;
     min-height: 58px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 10px;
     padding: 16px 22px;
-    border: 1.5px solid #000000;
+    border: 1.5px solid #111111;
     background: #ffffff;
-    color: #000000;
+    color: #111111;
     border-radius: 999px;
     cursor: pointer;
     font-size: 16px;
-    font-weight: 500;
+    font-weight: 600;
     line-height: 1.2;
     text-align: center;
     transition: all 0.25s ease;
@@ -62,43 +80,64 @@ Self-contained Product Wishlist Button
   }
 
   .wl-btn:hover {
-    background: #000000;
+    background: #111111;
     color: #ffffff;
-    border-color: #000000;
-  }
-
-  .wl-btn.is-active {
-    background: #000000;
-    color: #ffffff;
-    border-color: #000000;
-  }
-
-  .wl-btn.is-loading {
-    opacity: 0.7;
-    pointer-events: none;
+    transform: translateY(-1px);
   }
 
   .wl-btn:focus {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 0 0 4px rgba(17, 17, 17, 0.10);
+  }
+
+  .wl-btn.is-active {
+    background: #111111;
+    color: #ffffff;
+    border-color: #111111;
+  }
+
+  .wl-btn.wl-loading,
+  .wl-btn:disabled {
+    opacity: 0.72;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  .wl-btn-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+  }
+
+  .wl-btn-icon svg {
+    width: 18px;
+    height: 18px;
+    display: block;
+  }
+
+  .wl-btn-text {
+    display: inline-block;
   }
 
   .wl-floating-link {
     position: fixed;
-    left: 18px;
+    right: 18px;
     bottom: 18px;
     z-index: 99999;
-    width: 58px;
-    height: 58px;
-    border-radius: 14px;
-    background: #000000;
+    width: 60px;
+    height: 60px;
+    border-radius: 18px;
+    background: #111111;
     color: #ffffff;
     text-decoration: none;
     display: none;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
-    transition: transform 0.2s ease, background 0.2s ease;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
     overflow: visible;
   }
 
@@ -107,246 +146,91 @@ Self-contained Product Wishlist Button
   }
 
   .wl-floating-link:hover {
-    transform: translateY(-2px);
-    background: #111111;
+    transform: translateY(-3px);
+    background: #000000;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, 0.26);
     color: #ffffff;
   }
 
   .wl-floating-heart {
-    width: 100%;
-    height: 100%;
+    width: 26px;
+    height: 26px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 22px;
-    line-height: 1;
-    color: #e11d48;
-    transform: translateY(-1px);
+    color: #ff4d7d;
+  }
+
+  .wl-floating-heart svg {
+    width: 26px;
+    height: 26px;
+    display: block;
   }
 
   .wl-floating-count {
     position: absolute;
-    top: -6px;
-    right: -6px;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 6px;
+    top: -7px;
+    right: -7px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 7px;
     border-radius: 999px;
     background: #ffffff;
-    color: #000000;
+    color: #111111;
     font-size: 11px;
     font-weight: 700;
+    line-height: 1;
     display: none;
     align-items: center;
     justify-content: center;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.16);
+    border: 1px solid rgba(17, 17, 17, 0.08);
   }
 
-  .wl-floating-count.wl-show {
-    display: flex;
+  .wl-disabled-ui .wl-btn,
+  .wl-btn.wl-disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    pointer-events: none;
   }
 
   @media (max-width: 749px) {
     .wl-btn {
       min-height: 54px;
-      font-size: 15px;
       padding: 14px 18px;
+      font-size: 15px;
+      gap: 8px;
+    }
+
+    .wl-btn-icon,
+    .wl-btn-icon svg {
+      width: 17px;
+      height: 17px;
     }
 
     .wl-floating-link {
-      left: 14px;
+      right: 14px;
       bottom: 14px;
-      width: 54px;
-      height: 54px;
-      border-radius: 12px;
+      width: 56px;
+      height: 56px;
+      border-radius: 16px;
     }
 
-    .wl-floating-heart {
-      font-size: 21px;
+    .wl-floating-heart,
+    .wl-floating-heart svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .wl-floating-count {
+      min-width: 22px;
+      height: 22px;
+      font-size: 10px;
+      top: -6px;
+      right: -6px;
     }
   }
 </style>
-
-<script>
-(function () {
-  var SHOP = (window.Shopify && window.Shopify.shop) ? String(window.Shopify.shop) : "";
-  var GUEST_KEY = "wl_guest_id";
-
-  function getGuestId() {
-    var id = localStorage.getItem(GUEST_KEY);
-    if (!id) {
-      id = "guest:" + Date.now() + "-" + Math.random().toString(16).slice(2);
-      localStorage.setItem(GUEST_KEY, id);
-    }
-    return id;
-  }
-
-  function getCustomerId() {
-    if (typeof window.wishlistCustomerId !== "undefined" && window.wishlistCustomerId) {
-      return String(window.wishlistCustomerId);
-    }
-    return getGuestId();
-  }
-
-  function getButton() {
-    return document.querySelector(".wl-btn[data-product-id][data-variant-id]");
-  }
-
-  function getVariantId() {
-    var btn = getButton();
-    return btn ? String(btn.getAttribute("data-variant-id") || "") : "";
-  }
-
-  function setButtonState(active) {
-    var btn = getButton();
-    if (!btn) return;
-
-    var text = btn.querySelector(".wl-text");
-    btn.classList.toggle("is-active", !!active);
-    btn.setAttribute("aria-pressed", active ? "true" : "false");
-
-    if (text) {
-      text.textContent = active ? "Wishlisted" : "Add to wishlist";
-    }
-  }
-
-  function setButtonLoading(loading) {
-    var btn = getButton();
-    if (!btn) return;
-
-    btn.classList.toggle("is-loading", !!loading);
-    btn.disabled = !!loading;
-  }
-
-  function setFloatingCount(count) {
-    var floating = document.getElementById("wl-floating-link");
-    var badge = document.getElementById("wl-floating-count");
-    if (!floating || !badge) return;
-
-    badge.textContent = String(count || 0);
-
-    if (count > 0) {
-      floating.classList.add("wl-show");
-      badge.classList.add("wl-show");
-    } else {
-      floating.classList.remove("wl-show");
-      badge.classList.remove("wl-show");
-    }
-  }
-
-  async function apiList() {
-    try {
-      var customerId = getCustomerId();
-      var url = "/apps/wishlist/list?shop=" + encodeURIComponent(SHOP) + "&customerId=" + encodeURIComponent(customerId);
-
-      var res = await fetch(url, {
-        method: "GET",
-        credentials: "same-origin",
-        cache: "no-store"
-      });
-
-      var data = await res.json();
-      if (data && data.ok && Array.isArray(data.items)) {
-        return data.items;
-      }
-      return [];
-    } catch (e) {
-      console.error("Wishlist list error:", e);
-      return [];
-    }
-  }
-
-  async function apiToggle(productId, variantId) {
-    try {
-      var customerId = getCustomerId();
-      var url = "/apps/wishlist/toggle?shop=" + encodeURIComponent(SHOP);
-
-      var res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"
-        },
-        credentials: "same-origin",
-        body: new URLSearchParams({
-          customerId: customerId,
-          productId: String(productId),
-          variantId: String(variantId)
-        })
-      });
-
-      var data = await res.json();
-      return data || { ok: false };
-    } catch (e) {
-      console.error("Wishlist toggle error:", e);
-      return { ok: false };
-    }
-  }
-
-  async function syncUI() {
-    var btn = getButton();
-    if (!btn) return;
-
-    var currentVariantId = getVariantId();
-    var items = await apiList();
-
-    var exists = items.some(function (item) {
-      return String(item.variantId) === currentVariantId;
-    });
-
-    setButtonState(exists);
-    setFloatingCount(items.length);
-  }
-
-  async function handleClick(e) {
-    e.preventDefault();
-
-    var btn = getButton();
-    if (!btn) return;
-
-    var productId = String(btn.getAttribute("data-product-id") || "");
-    var variantId = String(btn.getAttribute("data-variant-id") || "");
-
-    if (!productId || !variantId) {
-      console.error("Missing productId or variantId on wishlist button");
-      return;
-    }
-
-    setButtonLoading(true);
-
-    try {
-      var result = await apiToggle(productId, variantId);
-
-      if (!result || !result.ok) {
-        console.error("Wishlist toggle failed:", result);
-        return;
-      }
-
-      await syncUI();
-    } finally {
-      setButtonLoading(false);
-    }
-  }
-
-  function bind() {
-    var btn = getButton();
-    if (!btn) return;
-
-    btn.removeEventListener("click", handleClick);
-    btn.addEventListener("click", handleClick);
-  }
-
-  function init() {
-    bind();
-    syncUI();
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-})();
-</script>
 
 {% schema %}
 {
