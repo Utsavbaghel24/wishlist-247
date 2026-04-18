@@ -260,23 +260,7 @@
 
 <script>
 (function() {
-  const scriptTag = document.currentScript;
-  const block = scriptTag.previousElementSibling;
-  if (!block || !block.classList.contains('wl-block')) return;
-
-  const btn = block.querySelector('.wl-btn');
-  if (!btn) return;
-
   const STORAGE_KEY = 'wl_guest_v2';
-
-  const productData = {
-    productId: String(block.dataset.productId || ''),
-    variantId: String(block.dataset.variantId || ''),
-    title: block.dataset.productTitle || '',
-    url: block.dataset.productUrl || '',
-    price: block.dataset.productPrice || '',
-    image: block.dataset.productImage || ''
-  };
 
   function getWishlist() {
     try {
@@ -290,22 +274,13 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }
 
-  function isCurrentProductWishlisted() {
-    const items = getWishlist();
-    return items.some(item => String(item.productId) === productData.productId && String(item.variantId) === productData.variantId);
-  }
-
-  function updateButtonState() {
-    const added = isCurrentProductWishlisted();
-    const textEl = btn.querySelector('.wl-text');
-
-    if (added) {
-      btn.classList.add('wl-added');
-      if (textEl) textEl.textContent = 'Wishlisted';
-    } else {
-      btn.classList.remove('wl-added');
-      if (textEl) textEl.textContent = 'Add to wishlist';
-    }
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   function ensureFloatingUI() {
@@ -406,7 +381,7 @@
     body.innerHTML = items.map(item => `
       <div class="wl-item">
         <div class="wl-item-image">
-          ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.title || '')}">` : ''}
+          ${item.image ? `<img src="${item.image}" alt="${escapeHtml(item.title)}">` : ''}
         </div>
         <div class="wl-item-info">
           <a class="wl-item-title" href="${item.url || '#'}">${escapeHtml(item.title || 'Product')}</a>
@@ -433,41 +408,81 @@
         });
 
         setWishlist(updated);
-        updateButtonState();
+        updateFloatingState();
+        renderWishlistDrawer();
+        syncAllButtons();
+      });
+    });
+  }
+
+  function syncAllButtons() {
+    document.querySelectorAll('.wl-block').forEach(block => {
+      const btn = block.querySelector('.wl-btn');
+      if (!btn) return;
+
+      const productId = String(block.dataset.productId || '');
+      const variantId = String(block.dataset.variantId || '');
+
+      const exists = getWishlist().some(item => 
+        String(item.productId) === productId && String(item.variantId) === variantId
+      );
+
+      const textEl = btn.querySelector('.wl-text');
+
+      if (exists) {
+        btn.classList.add('wl-added');
+        if (textEl) textEl.textContent = 'Wishlisted';
+      } else {
+        btn.classList.remove('wl-added');
+        if (textEl) textEl.textContent = 'Add to wishlist';
+      }
+    });
+  }
+
+  function initWishlistButtons() {
+    document.querySelectorAll('.wl-block').forEach(block => {
+      const btn = block.querySelector('.wl-btn');
+      if (!btn || btn.dataset.bound === 'true') return;
+
+      btn.dataset.bound = 'true';
+
+      btn.addEventListener('click', function() {
+        const productData = {
+          productId: String(block.dataset.productId || ''),
+          variantId: String(block.dataset.variantId || ''),
+          title: block.dataset.productTitle || '',
+          url: block.dataset.productUrl || '',
+          price: block.dataset.productPrice || '',
+          image: block.dataset.productImage || ''
+        };
+
+        const current = getWishlist();
+        const exists = current.some(item =>
+          String(item.productId) === productData.productId &&
+          String(item.variantId) === productData.variantId
+        );
+
+        let next;
+        if (exists) {
+          next = current.filter(item =>
+            !(String(item.productId) === productData.productId &&
+              String(item.variantId) === productData.variantId)
+          );
+        } else {
+          next = [...current, productData];
+        }
+
+        setWishlist(next);
+        syncAllButtons();
         updateFloatingState();
         renderWishlistDrawer();
       });
     });
   }
 
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-  }
-
-  btn.addEventListener('click', function() {
-    const current = getWishlist();
-    const exists = current.some(item => String(item.productId) === productData.productId && String(item.variantId) === productData.variantId);
-
-    let next;
-    if (exists) {
-      next = current.filter(item => !(String(item.productId) === productData.productId && String(item.variantId) === productData.variantId));
-    } else {
-      next = [...current, productData];
-    }
-
-    setWishlist(next);
-    updateButtonState();
-    updateFloatingState();
-    renderWishlistDrawer();
-  });
-
   ensureFloatingUI();
-  updateButtonState();
+  initWishlistButtons();
+  syncAllButtons();
   updateFloatingState();
   renderWishlistDrawer();
 })();
