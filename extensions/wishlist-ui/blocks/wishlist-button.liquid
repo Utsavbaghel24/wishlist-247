@@ -5,124 +5,149 @@ Bottom-left floating icon links to /pages/wishlist
 {% endcomment %}
 
 <style>
-  .wishlist-ui { display: block !important; }
+/* ===== Base visibility ===== */
+.wishlist-ui {
+  display: block !important;
+}
 
-  html:not(.wishlist-paid) .wishlist-ui {
-    opacity: .45;
-    pointer-events: none;
-    filter: grayscale(1);
-  }
+html:not(.wishlist-paid) .wishlist-ui {
+  opacity: 0.45;
+  pointer-events: none;
+  filter: grayscale(1);
+}
 
-  .wl-block {
-    width: 100%;
-    margin-top: 14px;
-  }
+/* ===== Button ===== */
+.wl-block {
+  width: 100%;
+  margin-top: 16px;
+}
 
+.wl-btn {
+  width: 100%;
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px 22px;
+  border: 1.5px solid #000;
+  background: #fff;
+  color: #000;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 16px;
+  font-weight: 500;
+  text-align: center;
+  transition: all 0.25s ease;
+  appearance: none;
+}
+
+/* Hover */
+.wl-btn:hover {
+  background: #000;
+  color: #fff;
+}
+
+/* Active (Wishlisted) */
+.wl-btn.is-active {
+  background: #000;
+  color: #fff;
+  border-color: #000;
+}
+
+/* Focus */
+.wl-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.12);
+}
+
+/* ===== Floating Icon (Bottom Left) ===== */
+.wl-floating-link {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 99999;
+
+  width: 56px;
+  height: 56px;
+
+  border-radius: 14px;
+  background: #000;
+  color: #fff;
+
+  text-decoration: none;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
+
+  transition: all 0.2s ease;
+}
+
+/* Show */
+.wl-floating-link.wl-show {
+  display: flex;
+}
+
+/* Hover effect */
+.wl-floating-link:hover {
+  transform: translateY(-3px);
+  background: #111;
+}
+
+/* ===== Heart Icon ===== */
+.wl-floating-heart {
+  font-size: 22px;
+  color: #ff2e63; /* RED ❤️ */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ===== Count Badge ===== */
+.wl-floating-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+
+  min-width: 20px;
+  height: 20px;
+
+  padding: 0 5px;
+
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  display: none;
+  align-items: center;
+  justify-content: center;
+
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+/* Show badge */
+.wl-floating-count.wl-show {
+  display: flex;
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 749px) {
   .wl-btn {
-    width: 100%;
-    min-height: 58px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 16px 22px;
-    border: 1.5px solid #17324d;
-    background: #ffffff;
-    color: #17324d;
-    border-radius: 999px;
-    cursor: pointer;
-    font-size: 16px;
-    font-weight: 500;
-    line-height: 1.2;
-    text-align: center;
-    transition: all 0.25s ease;
-    box-shadow: none;
-    appearance: none;
-    -webkit-appearance: none;
-  }
-
-  .wl-btn:hover {
-    background: #17324d;
-    color: #ffffff;
-  }
-
-  .wl-btn.is-active {
-    background: #17324d;
-    color: #ffffff;
-    border-color: #17324d;
-  }
-
-  .wl-btn:focus {
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(23, 50, 77, 0.12);
+    min-height: 52px;
+    font-size: 15px;
+    padding: 14px 18px;
   }
 
   .wl-floating-link {
-    position: fixed;
-    left: 18px;
-    bottom: 18px;
-    z-index: 99999;
-    width: 58px;
-    height: 58px;
-    border-radius: 14px;
-    background: #17324d;
-    color: #ffffff;
-    text-decoration: none;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-    transition: transform 0.2s ease, background 0.2s ease;
+    left: 14px;
+    bottom: 14px;
   }
-
-  .wl-floating-link.wl-show {
-    display: inline-flex;
-  }
-
-  .wl-floating-link:hover {
-    transform: translateY(-2px);
-    background: #10273d;
-    color: #ffffff;
-  }
-
-  .wl-floating-heart {
-    font-size: 24px;
-    line-height: 1;
-  }
-
-  .wl-floating-count {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    min-width: 24px;
-    height: 24px;
-    padding: 0 6px;
-    border-radius: 999px;
-    background: #a6dc63;
-    color: #17324d;
-    font-size: 12px;
-    font-weight: 700;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
-  }
-
-  .wl-floating-count.wl-show {
-    display: flex;
-  }
-
-  @media (max-width: 749px) {
-    .wl-btn {
-      min-height: 54px;
-      font-size: 15px;
-      padding: 14px 18px;
-    }
-
-    .wl-floating-link {
-      left: 14px;
-      bottom: 14px;
-    }
-  }
+}
 </style>
 
 <script>

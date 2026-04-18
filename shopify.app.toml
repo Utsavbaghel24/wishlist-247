@@ -1,6 +1,6 @@
 client_id = "2b8e6fdb5104ecbbfb5820eb32e312fa"
 name = "Wishlist-247"
-application_url = "https://YOUR-REAL-APP-DOMAIN.com"
+application_url = "https://YOUR-REAL-APP-URL.com"
 embedded = true
 
 [build]
@@ -22,12 +22,12 @@ scopes = "write_products,write_app_proxy"
 
 [auth]
 redirect_urls = [
-  "https://YOUR-REAL-APP-DOMAIN.com/api/auth",
-  "https://YOUR-REAL-APP-DOMAIN.com/auth/callback",
-  "https://YOUR-REAL-APP-DOMAIN.com/api/auth/callback"
+  "https://YOUR-REAL-APP-URL.com/api/auth",
+  "https://YOUR-REAL-APP-URL.com/auth/callback",
+  "https://YOUR-REAL-APP-URL.com/api/auth/callback"
 ]
 
 [app_proxy]
-url = "/apps/wishlist"
+url = "/proxy"
 prefix = "apps"
 subpath = "wishlist"
