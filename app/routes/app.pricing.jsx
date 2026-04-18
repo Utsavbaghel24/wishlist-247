@@ -12,8 +12,8 @@ import {
   Badge,
 } from "@shopify/polaris";
 
-import { authenticate, WISHLIST_PLAN } from "../shopify.server";
-
+import { authenticate } from "../shopify.server";
+import { WISHLIST_PLAN } from "../billing.plan";
 const PLAN = {
   name: "Wishlist Pro",
   price: 150,
