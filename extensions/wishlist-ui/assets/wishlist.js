@@ -166,7 +166,7 @@
         variantId: String(variantId),
       });
 
-      var url = withShop("/apps/wishlist/toggle?" + params.toString());
+      var url = withShop("/apps/wishlist/proxy_toggle?" + params.toString());
 
       var res = await fetch(url, {
         method: "GET",
