@@ -13,28 +13,27 @@ function json(data, status = 200) {
 export async function loader({ request }) {
   try {
     const url = new URL(request.url);
-    const shop = url.searchParams.get("shop") || "";
-    const customerId = url.searchParams.get("customerId") || "guest";
+    const shop = String(url.searchParams.get("shop") || "");
+    const customerId = String(url.searchParams.get("customerId") || "guest");
 
     if (!shop) {
-      return json({ ok: false, items: [], error: "Missing shop" });
+      return json({ ok: false, items: [], error: "Missing shop" }, 200);
     }
 
     const items = await prisma.wishlistItem.findMany({
       where: {
-        shop: String(shop),
-        customerId: String(customerId),
+        shop,
+        customerId,
       },
       orderBy: { createdAt: "desc" },
     });
 
-    return json({ ok: true, items });
+    return json({ ok: true, items }, 200);
   } catch (e) {
     console.error("LIST ERROR:", e);
-    return json({
-      ok: false,
-      items: [],
-      error: e?.message || "Server error",
-    }, 500);
+    return json(
+      { ok: false, items: [], error: e?.message || "Server error" },
+      500
+    );
   }
 }

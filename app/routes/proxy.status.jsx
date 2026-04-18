@@ -1,16 +1,28 @@
-export async function loader({ request }) {
-  const url = new URL(request.url);
-  const shop = url.searchParams.get("shop") || "";
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    },
+  });
+}
 
-  return new Response(
-    JSON.stringify({
+export async function loader({ request }) {
+  try {
+    const url = new URL(request.url);
+    const shop = url.searchParams.get("shop") || "";
+
+    return json({
       ok: true,
       shop,
-      active: true,
       enabled: true,
-    }),
-    {
-      headers: { "Content-Type": "application/json" },
-    }
-  );
+      billingActive: true,
+      billingDisabled: false,
+      active: true,
+    });
+  } catch (e) {
+    console.error("STATUS ERROR:", e);
+    return json({ ok: false, error: e?.message || "Server error" }, 500);
+  }
 }

@@ -14,20 +14,28 @@ export async function loader({ request }) {
   try {
     const url = new URL(request.url);
 
-    const shop = url.searchParams.get("shop") || "";
-    const customerId = url.searchParams.get("customerId") || "guest";
-    const productId = url.searchParams.get("productId") || "";
-    const variantId = url.searchParams.get("variantId") || "";
+    const shop = String(url.searchParams.get("shop") || "");
+    const customerId = String(url.searchParams.get("customerId") || "guest");
+    const productId = String(url.searchParams.get("productId") || "");
+    const variantId = String(url.searchParams.get("variantId") || "");
 
-    if (!shop) return json({ ok: false, error: "Missing shop" });
-    if (!productId) return json({ ok: false, error: "Missing productId" });
-    if (!variantId) return json({ ok: false, error: "Missing variantId" });
+    if (!shop) {
+      return json({ ok: false, error: "Missing shop" }, 200);
+    }
+
+    if (!productId) {
+      return json({ ok: false, error: "Missing productId" }, 200);
+    }
+
+    if (!variantId) {
+      return json({ ok: false, error: "Missing variantId" }, 200);
+    }
 
     const existing = await prisma.wishlistItem.findFirst({
       where: {
-        shop: String(shop),
-        customerId: String(customerId),
-        variantId: String(variantId),
+        shop,
+        customerId,
+        variantId,
       },
     });
 
@@ -45,10 +53,10 @@ export async function loader({ request }) {
 
     await prisma.wishlistItem.create({
       data: {
-        shop: String(shop),
-        customerId: String(customerId),
-        productId: String(productId),
-        variantId: String(variantId),
+        shop,
+        customerId,
+        productId,
+        variantId,
       },
     });
 
@@ -59,9 +67,6 @@ export async function loader({ request }) {
     });
   } catch (e) {
     console.error("TOGGLE ERROR:", e);
-    return json({
-      ok: false,
-      error: e?.message || "Server error",
-    }, 500);
+    return json({ ok: false, error: e?.message || "Server error" }, 500);
   }
 }
