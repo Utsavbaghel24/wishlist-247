@@ -32,3 +32,20 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model wishlistItem {
+  id         String   @id @default(cuid())
+  shop       String
+  customerId String
+  productId  String
+  variantId  String
+  createdAt  DateTime @default(now())
+
+  @@index([shop, customerId])
+}
+
+model wishlistSetting {
+  id      String @id @default(cuid())
+  shop    String @unique
+  enabled Boolean @default(true)
+}
