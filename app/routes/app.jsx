@@ -1,10 +1,39 @@
-import { Outlet, useLoaderData, useRouteError, useLocation } from "react-router";
+import {
+  Outlet,
+  useLoaderData,
+  useRouteError,
+  useLocation,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import { authenticate } from "../shopify.server";
+import { authenticate, WISHLIST_PLAN } from "../shopify.server";
 
 export const loader = async ({ request }) => {
-  await authenticate.admin(request);
+  const { billing } = await authenticate.admin(request);
+
+  const billingDisabled =
+    process.env.BILLING_DISABLED === "true" ||
+    process.env.BYPASS_BILLING === "1";
+
+  if (!billingDisabled) {
+    const isTest =
+      process.env.BILLING_TEST_MODE === "true" ||
+      process.env.NODE_ENV !== "production";
+
+    await billing.require({
+      plans: [WISHLIST_PLAN],
+      isTest,
+      onFailure: async () => {
+        throw new Response(null, {
+          status: 302,
+          headers: {
+            Location: "/app/pricing",
+          },
+        });
+      },
+    });
+  }
+
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };
 };
 

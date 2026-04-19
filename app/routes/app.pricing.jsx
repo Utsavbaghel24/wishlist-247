@@ -1,7 +1,5 @@
 import { useLoaderData, Link } from "react-router";
-import { authenticate } from "../shopify.server";
-import { hasActiveWishlistSubscription } from "../billing.server";
-import { WISHLIST_PLAN } from "../billing.plan";
+import { authenticate, WISHLIST_PLAN } from "../shopify.server";
 
 function json(data, init) {
   return new Response(JSON.stringify(data), {
@@ -14,7 +12,7 @@ function json(data, init) {
 }
 
 export async function loader({ request }) {
-  const { admin, session } = await authenticate.admin(request);
+  const { billing, session } = await authenticate.admin(request);
 
   const billingDisabled =
     process.env.BILLING_DISABLED === "true" ||
@@ -28,11 +26,23 @@ export async function loader({ request }) {
   if (billingDisabled) {
     isActive = true;
   } else {
-    isActive = await hasActiveWishlistSubscription(admin);
+    const billingCheck = await billing.check({
+      plans: [WISHLIST_PLAN],
+      isTest:
+        process.env.BILLING_TEST_MODE === "true" ||
+        process.env.NODE_ENV !== "production",
+    });
+
+    isActive = billingCheck.hasActivePayment;
   }
 
   return json({
-    plan: WISHLIST_PLAN,
+    plan: {
+      name: WISHLIST_PLAN,
+      price: 75,
+      currency: "USD",
+      trialDays: 7,
+    },
     isActive,
     shop: session.shop,
     host,
@@ -42,7 +52,13 @@ export async function loader({ request }) {
 export default function Pricing() {
   const data = useLoaderData();
 
-  const plan = data?.plan || WISHLIST_PLAN;
+  const plan = data?.plan || {
+    name: "Wishlist Pro",
+    price: 75,
+    currency: "USD",
+    trialDays: 7,
+  };
+
   const isActive = !!data?.isActive;
   const host = data?.host || "";
 

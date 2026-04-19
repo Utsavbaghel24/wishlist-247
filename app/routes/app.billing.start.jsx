@@ -1,58 +1,57 @@
-import { useLoaderData } from "react-router";
-import { authenticate } from "../shopify.server";
-import {
-  hasActiveWishlistSubscription,
-  startWishlistSubscription,
-} from "../billing.server";
+import { authenticate, WISHLIST_PLAN } from "../shopify.server";
 
 export async function loader({ request }) {
-  const { admin, session } = await authenticate.admin(request);
+  try {
+    const { billing, redirect } = await authenticate.admin(request);
 
-  const billingDisabled =
-    process.env.BILLING_DISABLED === "true" ||
-    process.env.BYPASS_BILLING === "1";
+    const billingDisabled =
+      process.env.BILLING_DISABLED === "true" ||
+      process.env.BYPASS_BILLING === "1";
 
-  const url = new URL(request.url);
-  const host = url.searchParams.get("host") || "";
+    if (billingDisabled) {
+      return redirect("/app", { target: "_self" });
+    }
 
-  if (billingDisabled) {
-    return {
-      mode: "redirect-app",
-      target: host ? `/app?host=${encodeURIComponent(host)}` : "/app",
-    };
+    const isTest =
+      process.env.BILLING_TEST_MODE === "true" ||
+      process.env.NODE_ENV !== "production";
+
+    const billingCheck = await billing.check({
+      plans: [WISHLIST_PLAN],
+      isTest,
+    });
+
+    if (billingCheck.hasActivePayment) {
+      return redirect("/app", { target: "_self" });
+    }
+
+    return await billing.request({
+      plan: WISHLIST_PLAN,
+      isTest,
+      returnUrl: "/app/billing/confirm",
+    });
+  } catch (error) {
+    console.error("Billing start failed:", error);
+
+    const message =
+      error instanceof Error ? error.message : "Unknown billing error";
+
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: message,
+      }),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "application/json",
+        },
+      },
+    );
   }
-
-  const alreadyActive = await hasActiveWishlistSubscription(admin);
-
-  if (alreadyActive) {
-    return {
-      mode: "redirect-app",
-      target: host ? `/app?host=${encodeURIComponent(host)}` : "/app",
-    };
-  }
-
-  const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
-
-  if (!appUrl) {
-    throw new Error("Missing SHOPIFY_APP_URL or APP_URL");
-  }
-
-  const confirmationUrl = await startWishlistSubscription({
-    admin,
-    appUrl,
-    shop: session.shop,
-    host,
-  });
-
-  return {
-    mode: "redirect-billing",
-    target: confirmationUrl,
-  };
 }
 
 export default function BillingStart() {
-  const data = useLoaderData();
-
   return (
     <div
       style={{
@@ -93,21 +92,6 @@ export default function BillingStart() {
           Please wait while Wishlist247 opens the Shopify billing approval page.
         </p>
       </div>
-
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-            (function () {
-              var target = ${JSON.stringify(data?.target || "/app")};
-              if (window.top && target) {
-                window.top.location.href = target;
-              } else if (target) {
-                window.location.href = target;
-              }
-            })();
-          `,
-        }}
-      />
     </div>
   );
 }
