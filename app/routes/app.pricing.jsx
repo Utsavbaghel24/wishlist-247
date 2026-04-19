@@ -68,9 +68,9 @@ export default function Pricing() {
   const host = data?.host || "";
   const trialUsed = !!data?.trialUsed;
 
-  const startBillingUrl = host
-    ? `/app/billing/start?host=${encodeURIComponent(host)}`
-    : `/app/billing/start`;
+const startBillingUrl = `/app/billing/start?shop=${encodeURIComponent(
+  data.shop,
+)}&host=${encodeURIComponent(host)}`;
 
   const isCancelling =
     fetcher.state !== "idle" &&
