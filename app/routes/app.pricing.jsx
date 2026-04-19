@@ -1,4 +1,3 @@
-// app/routes/app.pricing.jsx
 import { Form, useLoaderData } from "react-router";
 import {
   Page,
@@ -14,11 +13,6 @@ import {
 
 import { authenticate } from "../shopify.server";
 import { WISHLIST_PLAN } from "../billing.plan";
-const PLAN = {
-  name: "Wishlist Pro",
-  price: 150,
-  trialDays: 7,
-};
 
 function json(data, init) {
   return new Response(JSON.stringify(data), {
@@ -37,6 +31,8 @@ export async function loader({ request }) {
     process.env.BILLING_DISABLED === "true" ||
     process.env.BYPASS_BILLING === "1";
 
+  const isTest = process.env.NODE_ENV !== "production";
+
   let isActive = false;
   let subscriptions = [];
 
@@ -45,7 +41,7 @@ export async function loader({ request }) {
   } else {
     const billingStatus = await billing.check({
       plans: [WISHLIST_PLAN],
-      isTest: true,
+      isTest,
     });
 
     isActive = billingStatus.hasActivePayment;
@@ -53,7 +49,7 @@ export async function loader({ request }) {
   }
 
   return json({
-    plan: PLAN,
+    plan: WISHLIST_PLAN,
     isActive,
     subscriptions,
     shop: session.shop,
@@ -71,9 +67,11 @@ export async function action({ request }) {
     return json({ ok: true, bypass: true });
   }
 
+  const isTest = process.env.NODE_ENV !== "production";
+
   const billingStatus = await billing.check({
     plans: [WISHLIST_PLAN],
-    isTest: true,
+    isTest,
   });
 
   if (billingStatus.hasActivePayment) {
@@ -91,21 +89,21 @@ export async function action({ request }) {
 
   return billing.request({
     plan: WISHLIST_PLAN,
-    isTest: true,
-    trialDays: PLAN.trialDays,
-    returnUrl: `${appUrl}/app/settings`,
+    isTest,
+    trialDays: WISHLIST_PLAN.trialDays,
+    returnUrl: `${appUrl}/app/billing/confirm`,
   });
 }
 
 export default function Pricing() {
   const data = useLoaderData();
 
-  const plan = data?.plan || PLAN;
+  const plan = data?.plan || WISHLIST_PLAN;
   const isActive = !!data?.isActive;
 
   return (
     <Page
-      title="Plans"
+      title="Pricing"
       subtitle={`Activate ${plan.name} to enable wishlist for your storefront.`}
     >
       <Layout>
@@ -117,15 +115,18 @@ export default function Pricing() {
               </Text>
 
               <Text as="p" variant="bodyMd">
-                Add a wishlist icon in header, wishlist button on product pages, and a wishlist
-                page. Works for guest + logged-in customers.
+                Wishlist247 gives your store a clean, professional wishlist system
+                with a product page wishlist button, a floating wishlist icon,
+                and a dedicated wishlist page with add-to-cart and remove actions.
               </Text>
 
               <List type="bullet">
-                <List.Item>Header wishlist icon</List.Item>
-                <List.Item>Product page Add to wishlist button</List.Item>
-                <List.Item>Wishlist page with add to cart + remove</List.Item>
-                <List.Item>Paid stores only billing protected</List.Item>
+                <List.Item>Wishlist button on product pages</List.Item>
+                <List.Item>Floating wishlist icon with live count</List.Item>
+                <List.Item>Dedicated wishlist page</List.Item>
+                <List.Item>Remove items from wishlist</List.Item>
+                <List.Item>Add wishlist items directly to cart</List.Item>
+                <List.Item>Billing-protected access for active merchants</List.Item>
               </List>
             </BlockStack>
           </Card>
@@ -147,7 +148,7 @@ export default function Pricing() {
               </InlineStack>
 
               <Text as="p" variant="bodyMd" tone="subdued">
-                Cancel anytime • Shopify will ask for approval
+                7-day free trial, then ${plan.price}/month. Cancel anytime.
               </Text>
 
               {isActive ? (

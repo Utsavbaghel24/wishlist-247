@@ -1,16 +1,16 @@
-// app/routes/app.billing.confirm.jsx
-import { redirect } from "react-router";
-import { useLoaderData } from "react-router";
+import { redirect, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import { hasActiveWishlistSubscription } from "../billing.server";
-
 import { Page, Layout, Card, Text, Button, BlockStack, Banner } from "@shopify/polaris";
 
 export async function loader({ request }) {
   const { admin } = await authenticate.admin(request);
 
   const isActive = await hasActiveWishlistSubscription(admin);
-  if (isActive) throw redirect("/app");
+
+  if (isActive) {
+    throw redirect("/app");
+  }
 
   return {
     ok: false,
@@ -33,7 +33,7 @@ export default function BillingConfirm() {
           <Card padding="600">
             <BlockStack gap="300">
               <Text as="p" tone="subdued">
-                Go back to pricing and start the trial again to enable the app.
+                Go back to pricing and start the trial again to enable Wishlist247.
               </Text>
 
               <Button url="/app/pricing" variant="primary">
