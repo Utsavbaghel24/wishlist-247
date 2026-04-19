@@ -10,20 +10,39 @@ export async function loader({ request }) {
 
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
+  const shop = session?.shop || url.searchParams.get("shop") || "";
 
   const isActive = await hasActiveWishlistSubscription(admin);
 
+  const appUrl = shop
+    ? `/app?shop=${encodeURIComponent(shop)}${
+        host ? `&host=${encodeURIComponent(host)}` : ""
+      }`
+    : host
+      ? `/app?host=${encodeURIComponent(host)}`
+      : "/app";
+
+  const pricingUrl = shop
+    ? `/app/pricing?shop=${encodeURIComponent(shop)}${
+        host ? `&host=${encodeURIComponent(host)}` : ""
+      }`
+    : host
+      ? `/app/pricing?host=${encodeURIComponent(host)}`
+      : "/app/pricing";
+
   if (isActive) {
-    if (session?.shop) {
-      await markTrialUsed(session.shop);
+    if (shop) {
+      await markTrialUsed(shop);
     }
 
-    throw redirect(host ? `/app?host=${encodeURIComponent(host)}` : "/app");
+    throw redirect(appUrl);
   }
 
   return {
     ok: false,
     host,
+    shop,
+    pricingUrl,
     message:
       "Subscription not active yet. Please approve the charge in Shopify and try again.",
   };
@@ -31,10 +50,6 @@ export async function loader({ request }) {
 
 export default function BillingConfirm() {
   const data = useLoaderData();
-
-  const pricingUrl = data?.host
-    ? `/app/pricing?host=${encodeURIComponent(data.host)}`
-    : "/app/pricing";
 
   return (
     <div
@@ -93,7 +108,7 @@ export default function BillingConfirm() {
         </p>
 
         <a
-          href={pricingUrl}
+          href={data?.pricingUrl || "/app/pricing"}
           style={{
             display: "inline-block",
             background: "#111827",
