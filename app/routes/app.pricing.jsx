@@ -1,6 +1,5 @@
 import { useLoaderData, useFetcher, Link } from "react-router";
 import { authenticate } from "../shopify.server";
-import prisma from "../db.server";
 import {
   hasActiveWishlistSubscription,
   cancelWishlistSubscription,
