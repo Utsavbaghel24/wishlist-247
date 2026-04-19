@@ -277,6 +277,7 @@ export default function Pricing() {
           ) : (
             <Link
               to={startBillingUrl}
+              reloadDocument
               style={{
                 width: "100%",
                 display: "inline-flex",
