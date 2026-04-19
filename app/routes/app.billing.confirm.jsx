@@ -1,128 +1,109 @@
-import { redirect, useLoaderData } from "react-router";
-import { authenticate } from "../shopify.server";
-import {
-  hasActiveWishlistSubscription,
-  markTrialUsed,
-} from "../billing.server";
+import { redirect } from "react-router";
+import prisma from "../db.server";
+import { markTrialUsed } from "../billing.server";
+
+const ACTIVE_SUBSCRIPTIONS_QUERY = `#graphql
+query ActiveSubscriptions {
+  currentAppInstallation {
+    activeSubscriptions {
+      id
+      name
+      status
+    }
+  }
+}
+`;
+
+function buildEmbeddedAppUrl(shop, host, path = "") {
+  const apiKey = process.env.SHOPIFY_API_KEY;
+
+  if (!shop || !apiKey) {
+    return path || "/app";
+  }
+
+  const normalizedPath = path
+    ? path.startsWith("/") ? path : `/${path}`
+    : "";
+
+  const params = new URLSearchParams();
+  if (host) {
+    params.set("host", host);
+  }
+
+  const query = params.toString();
+  return `https://${shop}/admin/apps/${apiKey}${normalizedPath}${query ? `?${query}` : ""}`;
+}
+
+async function hasActiveWishlistSubscriptionByShop(shop) {
+  const offlineSession = await prisma.session.findFirst({
+    where: {
+      shop,
+      isOnline: false,
+    },
+  });
+
+  if (!offlineSession?.accessToken) {
+    console.error("No offline session found for shop:", shop);
+    return false;
+  }
+
+  const apiVersion = process.env.SHOPIFY_API_VERSION || "2024-10";
+
+  const response = await fetch(
+    `https://${shop}/admin/api/${apiVersion}/graphql.json`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": offlineSession.accessToken,
+      },
+      body: JSON.stringify({
+        query: ACTIVE_SUBSCRIPTIONS_QUERY,
+      }),
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    console.error("Billing confirm GraphQL HTTP error:", response.status, text);
+    return false;
+  }
+
+  const json = await response.json();
+  const subscriptions =
+    json?.data?.currentAppInstallation?.activeSubscriptions || [];
+
+  return subscriptions.some(
+    (sub) =>
+      sub &&
+      sub.name === "Wishlist Pro" &&
+      (sub.status === "ACTIVE" || sub.status === "ACCEPTED"),
+  );
+}
 
 export async function loader({ request }) {
-  const { admin, session } = await authenticate.admin(request);
-
   const url = new URL(request.url);
+
+  const shop = url.searchParams.get("shop") || "";
   const host = url.searchParams.get("host") || "";
-  const shop = session?.shop || url.searchParams.get("shop") || "";
 
-  const isActive = await hasActiveWishlistSubscription(admin);
+  const appUrl = buildEmbeddedAppUrl(shop, host);
+  const pricingUrl = buildEmbeddedAppUrl(shop, host, "/pricing");
 
-  const appUrl = shop
-    ? `/app?shop=${encodeURIComponent(shop)}${
-        host ? `&host=${encodeURIComponent(host)}` : ""
-      }`
-    : host
-      ? `/app?host=${encodeURIComponent(host)}`
-      : "/app";
+  if (!shop) {
+    throw redirect("/app/pricing");
+  }
 
-  const pricingUrl = shop
-    ? `/app/pricing?shop=${encodeURIComponent(shop)}${
-        host ? `&host=${encodeURIComponent(host)}` : ""
-      }`
-    : host
-      ? `/app/pricing?host=${encodeURIComponent(host)}`
-      : "/app/pricing";
+  const isActive = await hasActiveWishlistSubscriptionByShop(shop);
 
   if (isActive) {
-    if (shop) {
-      await markTrialUsed(shop);
-    }
-
+    await markTrialUsed(shop);
     throw redirect(appUrl);
   }
 
-  return {
-    ok: false,
-    host,
-    shop,
-    pricingUrl,
-    message:
-      "Subscription not active yet. Please approve the charge in Shopify and try again.",
-  };
+  throw redirect(pricingUrl);
 }
 
 export default function BillingConfirm() {
-  const data = useLoaderData();
-
-  return (
-    <div
-      style={{
-        padding: "24px",
-        maxWidth: "900px",
-        margin: "0 auto",
-        fontFamily:
-          '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-      }}
-    >
-      <div
-        style={{
-          background: "#ffffff",
-          border: "1px solid #fecaca",
-          borderRadius: "18px",
-          padding: "28px",
-          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-        }}
-      >
-        <div
-          style={{
-            display: "inline-block",
-            padding: "6px 12px",
-            borderRadius: "999px",
-            background: "#fef2f2",
-            color: "#b42318",
-            fontSize: "13px",
-            fontWeight: 600,
-            marginBottom: "14px",
-          }}
-        >
-          Billing not approved
-        </div>
-
-        <h1
-          style={{
-            fontSize: "30px",
-            lineHeight: 1.2,
-            margin: "0 0 12px 0",
-            color: "#111827",
-          }}
-        >
-          Subscription not active
-        </h1>
-
-        <p
-          style={{
-            fontSize: "16px",
-            lineHeight: 1.7,
-            color: "#4b5563",
-            margin: "0 0 18px 0",
-          }}
-        >
-          {data?.message}
-        </p>
-
-        <a
-          href={data?.pricingUrl || "/app/pricing"}
-          style={{
-            display: "inline-block",
-            background: "#111827",
-            color: "#ffffff",
-            textDecoration: "none",
-            borderRadius: "12px",
-            padding: "12px 18px",
-            fontSize: "14px",
-            fontWeight: 700,
-          }}
-        >
-          Back to Pricing
-        </a>
-      </div>
-    </div>
-  );
+  return null;
 }
