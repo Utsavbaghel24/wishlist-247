@@ -230,6 +230,8 @@ export default function Pricing() {
           ) : (
             <a
               href={startBillingUrl}
+              target="_top"
+              rel="noreferrer"
               style={{
                 width: "100%",
                 display: "inline-flex",

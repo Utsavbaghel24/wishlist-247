@@ -60,7 +60,7 @@ export async function hasActiveWishlistSubscription(admin) {
   const subs =
     safeGet(json, "data.currentAppInstallation.activeSubscriptions", []) || [];
 
-  return subs.some(function (s) {
+  return subs.some((s) => {
     return s && s.name === WISHLIST_PLAN.name && s.status === "ACTIVE";
   });
 }

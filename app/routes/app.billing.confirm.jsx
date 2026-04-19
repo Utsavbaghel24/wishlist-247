@@ -24,6 +24,10 @@ export async function loader({ request }) {
 export default function BillingConfirm() {
   const data = useLoaderData();
 
+  const pricingUrl = data?.host
+    ? `/app/pricing?host=${encodeURIComponent(data.host)}`
+    : "/app/pricing";
+
   return (
     <div
       style={{
@@ -81,7 +85,7 @@ export default function BillingConfirm() {
         </p>
 
         <a
-          href={data?.host ? `/app/pricing?host=${encodeURIComponent(data.host)}` : "/app/pricing"}
+          href={pricingUrl}
           style={{
             display: "inline-block",
             background: "#111827",
