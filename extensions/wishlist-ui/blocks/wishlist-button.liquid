@@ -199,11 +199,13 @@ No extra wishlist nav text link
 
 <script>
   (function () {
-    var alreadyLoaded =
-      document.querySelector('script[data-wl-script="1"]') ||
-      (window.WishlistUI && typeof window.WishlistUI.sync === "function");
+    function loadScriptOnce() {
+      var alreadyLoaded =
+        document.querySelector('script[data-wl-script="1"]') ||
+        (window.WishlistUI && typeof window.WishlistUI.sync === "function");
 
-    if (!alreadyLoaded) {
+      if (alreadyLoaded) return;
+
       var s = document.createElement("script");
       s.src = {{ 'wishlist.js' | asset_url | json }};
       s.defer = true;
@@ -219,6 +221,8 @@ No extra wishlist nav text link
       }
     }
 
+    loadScriptOnce();
+
     document.addEventListener("DOMContentLoaded", function () {
       setTimeout(runSync, 300);
     });
@@ -232,18 +236,20 @@ No extra wishlist nav text link
         ? Number(e.detail.count || 0)
         : 0;
 
-      var countEl = document.getElementById("wl-floating-count");
-      if (!countEl) return;
+      var countEls = document.querySelectorAll("[data-wl-count]");
+      if (!countEls.length) return;
 
-      countEl.textContent = String(count);
+      countEls.forEach(function (countEl) {
+        countEl.textContent = String(count);
 
-      if (count > 0) {
-        countEl.classList.add("wl-show");
-        countEl.style.display = "flex";
-      } else {
-        countEl.classList.remove("wl-show");
-        countEl.style.display = "none";
-      }
+        if (count > 0) {
+          countEl.classList.add("wl-show");
+          countEl.style.display = "flex";
+        } else {
+          countEl.classList.remove("wl-show");
+          countEl.style.display = "none";
+        }
+      });
     });
   })();
 </script>

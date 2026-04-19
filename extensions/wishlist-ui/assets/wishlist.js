@@ -1,6 +1,11 @@
 (function () {
   "use strict";
 
+  if (window.__WISHLIST_UI_INITIALIZED__) {
+    return;
+  }
+  window.__WISHLIST_UI_INITIALIZED__ = true;
+
   var STORAGE_GUEST_ID = "wl_guest_id";
   var STORAGE_MERGED = "wl_merged_customer";
 
@@ -141,11 +146,15 @@
       var res = await fetch(withShop("/apps/wishlist/status"), {
         credentials: "same-origin",
         cache: "no-store",
+        headers: { Accept: "application/json" },
       });
 
-      if (res.status === 402) return { ok: false, active: false, reason: "billing" };
+      if (res.status === 402) {
+        return { ok: false, active: false, reason: "billing" };
+      }
 
       var data = await safeJson(res);
+
       if (data && data.ok === true) {
         if (data.enabled === false) return { ok: false, active: false, reason: "disabled" };
         if (data.active === false) return { ok: false, active: false, reason: "inactive" };
@@ -160,31 +169,25 @@
 
   async function apiToggle(customerId, productId, variantId) {
     try {
-      var params = new URLSearchParams({
-        customerId: String(customerId),
-        productId: String(productId),
-        variantId: String(variantId),
-      });
-
-var url = withShop("/apps/wishlist/toggle?" + params.toString());
-      var res = await fetch(url, {
-        method: "GET",
+      var res = await fetch(withShop("/apps/wishlist/toggle"), {
+        method: "POST",
         credentials: "same-origin",
         cache: "no-store",
-        headers: { Accept: "application/json" },
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          Accept: "application/json",
+        },
+        body: new URLSearchParams({
+          customerId: String(customerId),
+          productId: String(productId),
+          variantId: String(variantId),
+        }),
       });
 
-      var text = await res.text();
-
-      var data = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch (e) {
-        return { ok: false, error: "Wishlist API returned HTML instead of JSON" };
-      }
+      var data = await safeJson(res);
 
       if (res.status === 402) return { ok: false, billingRequired: true };
-      if (!res.ok) return { ok: false, error: data?.error || "Request failed" };
+      if (!res.ok) return { ok: false, error: (data && data.error) || "Request failed" };
 
       return data || { ok: false, error: "Empty response" };
     } catch (e) {
@@ -193,19 +196,24 @@ var url = withShop("/apps/wishlist/toggle?" + params.toString());
   }
 
   async function apiList(customerId) {
-    var res = await fetch(
-      withShop("/apps/wishlist/list?customerId=" + encodeURIComponent(String(customerId))),
-      {
-        credentials: "same-origin",
-        cache: "no-store",
-      }
-    );
+    try {
+      var res = await fetch(
+        withShop("/apps/wishlist/list?customerId=" + encodeURIComponent(String(customerId))),
+        {
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        }
+      );
 
-    if (res.status === 402) return { items: [], billingRequired: true };
-    if (!res.ok) return { items: [] };
+      if (res.status === 402) return { items: [], billingRequired: true };
+      if (!res.ok) return { items: [] };
 
-    var data = await safeJson(res);
-    return data || { items: [] };
+      var data = await safeJson(res);
+      return data || { items: [] };
+    } catch (e) {
+      return { items: [] };
+    }
   }
 
   async function apiMerge(fromId, toId) {
@@ -214,6 +222,7 @@ var url = withShop("/apps/wishlist/toggle?" + params.toString());
         method: "POST",
         headers: {
           "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          Accept: "application/json",
         },
         credentials: "same-origin",
         body: new URLSearchParams({
@@ -334,19 +343,20 @@ var url = withShop("/apps/wishlist/toggle?" + params.toString());
         return;
       }
 
-   if (result && result.ok) {
-  await syncAll();
-  showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
-} else {
-  console.error("Wishlist toggle failed:", result);
-  showToast(
-    result && result.error
-      ? String(result.error).slice(0, 120)
-      : "Add to wishlist failed",
-    true
-  );
-}
+      if (result && result.ok) {
+        await syncAll();
+        showToast(wasActive ? "Removed from wishlist" : "Added to wishlist");
+      } else {
+        console.error("Wishlist toggle failed:", result);
+        showToast(
+          result && result.error
+            ? String(result.error).slice(0, 120)
+            : "Add to wishlist failed",
+          true
+        );
+      }
     } catch (err) {
+      console.error("Wishlist click error:", err);
       showToast("Something went wrong", true);
     } finally {
       btn.dataset.loading = "0";

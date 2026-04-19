@@ -1,6 +1,13 @@
-// app/routes/app.toggle.jsx
-import { Page, Card, BlockStack, Text, InlineStack, Button, Badge } from "@shopify/polaris";
-import { useFetcher } from "react-router";
+import {
+  Page,
+  Card,
+  BlockStack,
+  Text,
+  InlineStack,
+  Button,
+  Badge,
+} from "@shopify/polaris";
+import { useFetcher, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 
 /**
@@ -36,11 +43,9 @@ export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
 
   const res = await admin.graphql(GET_ENABLED_QUERY);
-  const json = await res.json();
+  const data = await res.json();
 
-  const value = json?.data?.currentAppInstallation?.metafield?.value;
-
-  // default ON if not set yet
+  const value = data?.data?.currentAppInstallation?.metafield?.value;
   const enabled = value === null || value === undefined ? true : value === "true";
 
   return { enabled };
@@ -52,11 +57,11 @@ export const action = async ({ request }) => {
 
   const enabled = form.get("enabled") === "true";
 
-  // Get installation id for ownerId
   const getRes = await admin.graphql(`#graphql
     query GetInstallId {
       currentAppInstallation { id }
-    }`);
+    }
+  `);
   const getJson = await getRes.json();
   const ownerId = getJson?.data?.currentAppInstallation?.id;
 
@@ -77,23 +82,19 @@ export const action = async ({ request }) => {
   const setJson = await setRes.json();
   const err = setJson?.data?.metafieldsSet?.userErrors?.[0]?.message;
 
-  if (err) return { ok: false, message: err, enabled };
+  if (err) {
+    return { ok: false, message: err, enabled };
+  }
 
   return { ok: true, enabled };
 };
 
 export default function TogglePage() {
+  const loaderData = useLoaderData();
   const fetcher = useFetcher();
-  const enabled =
-    fetcher.data?.enabled !== undefined ? fetcher.data.enabled : fetcher?.state === "idle";
 
-  // React Router loader data is not directly available without useLoaderData in this template,
-  // so we use fetcher pattern: auto-load by submitting GET is not needed.
-  // Keep UI simple: button toggles based on last action result
   const currentEnabled =
-    fetcher.data?.enabled !== undefined ? fetcher.data.enabled : null;
-
-  const showEnabled = currentEnabled === null ? true : currentEnabled;
+    fetcher.data?.enabled !== undefined ? fetcher.data.enabled : loaderData.enabled;
 
   const isSaving = fetcher.state === "submitting";
 
@@ -107,26 +108,27 @@ export default function TogglePage() {
                 Wishlist Status
               </Text>
 
-              <Badge tone={showEnabled ? "success" : "critical"}>
-                {showEnabled ? "Enabled" : "Disabled"}
+              <Badge tone={currentEnabled ? "success" : "critical"}>
+                {currentEnabled ? "Enabled" : "Disabled"}
               </Badge>
             </InlineStack>
 
             <Text as="p" variant="bodyMd">
-              This is the master switch. If disabled, your storefront wishlist icon/button/page should not load.
+              This is the master switch. If disabled, your storefront wishlist icon,
+              button, and page should not load.
             </Text>
 
             <InlineStack gap="300" align="start">
               <Button
                 loading={isSaving}
-                tone={showEnabled ? "critical" : "success"}
+                tone={currentEnabled ? "critical" : "success"}
                 onClick={() => {
                   const fd = new FormData();
-                  fd.append("enabled", showEnabled ? "false" : "true");
+                  fd.append("enabled", currentEnabled ? "false" : "true");
                   fetcher.submit(fd, { method: "POST" });
                 }}
               >
-                {showEnabled ? "Turn OFF Wishlist" : "Turn ON Wishlist"}
+                {currentEnabled ? "Turn OFF Wishlist" : "Turn ON Wishlist"}
               </Button>
             </InlineStack>
           </BlockStack>

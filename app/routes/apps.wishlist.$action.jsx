@@ -1,4 +1,3 @@
-// app/routes/apps.wishlist.$action.jsx
 import prisma from "../db.server.js";
 import { authenticate } from "../shopify.server";
 import { hasActiveWishlistSubscription } from "../billing.server";
@@ -20,8 +19,13 @@ async function readBody(request) {
     return await request.json();
   }
 
-  const fd = await request.formData();
-  return Object.fromEntries(fd.entries());
+  if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
+    const fd = await request.formData();
+    return Object.fromEntries(fd.entries());
+  }
+
+  const text = await request.text();
+  return Object.fromEntries(new URLSearchParams(text));
 }
 
 async function ensureSetting(shop) {
@@ -46,154 +50,186 @@ async function isBillingActive(admin) {
    GET /apps/wishlist/:action
 =========================== */
 export async function loader({ request, params }) {
-  const action = params.action;
-  const url = new URL(request.url);
+  try {
+    const action = params.action;
+    const url = new URL(request.url);
 
-  // Proxy auth (storefront)
-  const { admin, session } = await authenticate.public.appProxy(request);
+    const { admin, session } = await authenticate.public.appProxy(request);
 
-  const shop = session?.shop || url.searchParams.get("shop") || "";
-  if (!shop) {
-    return json({ ok: false, error: "Missing shop" }, 400);
+    const shop = session?.shop || url.searchParams.get("shop") || "";
+    if (!shop) {
+      return json({ ok: false, error: "Missing shop" }, 400);
+    }
+
+    const setting = await ensureSetting(shop);
+
+    if (action === "status") {
+      if (!setting.enabled) {
+        return json({ ok: true, enabled: false, active: false }, 200);
+      }
+
+      const active = await isBillingActive(admin);
+      if (!active) {
+        return json({ ok: false, error: "Billing required" }, 402);
+      }
+
+      return json({ ok: true, enabled: true, active: true }, 200);
+    }
+
+    if (action === "list") {
+      if (!setting.enabled) {
+        return json({ ok: true, items: [] }, 200);
+      }
+
+      const active = await isBillingActive(admin);
+      if (!active) {
+        return json({ ok: false, error: "Billing required" }, 402);
+      }
+
+      const customerId = String(url.searchParams.get("customerId") || "");
+      if (!customerId) {
+        return json({ ok: true, items: [] }, 200);
+      }
+
+      const items = await prisma.wishlistItem.findMany({
+        where: { shop, customerId },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return json({ ok: true, items }, 200);
+    }
+
+    return json({ ok: false, error: "Not found" }, 404);
+  } catch (error) {
+    console.error("apps.wishlist loader error:", error);
+    return json({ ok: false, error: error?.message || "Server error" }, 500);
   }
-
-  const setting = await ensureSetting(shop);
-
-  if (action === "status") {
-    if (!setting.enabled) {
-      return json({ ok: true, enabled: false }, 200);
-    }
-
-    const active = await isBillingActive(admin);
-    if (!active) {
-      return json({ ok: false, error: "Billing required" }, 402);
-    }
-
-    return json({ ok: true, enabled: true }, 200);
-  }
-
-  if (action === "list") {
-    if (!setting.enabled) {
-      return json({ ok: true, items: [] }, 200);
-    }
-
-    const active = await isBillingActive(admin);
-    if (!active) {
-      return json({ ok: false, error: "Billing required" }, 402);
-    }
-
-    const customerId = url.searchParams.get("customerId") || "";
-    if (!customerId) {
-      return json({ ok: true, items: [] }, 200);
-    }
-
-    const items = await prisma.wishlistItem.findMany({
-      where: { shop, customerId },
-      orderBy: { createdAt: "desc" },
-    });
-
-    return json({ ok: true, items }, 200);
-  }
-
-  return json({ ok: false, error: "Not found" }, 404);
 }
 
 /* ===========================
    POST /apps/wishlist/:action
 =========================== */
 export async function action({ request, params }) {
-  const actionName = params.action;
-  const url = new URL(request.url);
+  try {
+    const actionName = params.action;
+    const url = new URL(request.url);
 
-  const { admin, session } = await authenticate.public.appProxy(request);
+    const { admin, session } = await authenticate.public.appProxy(request);
 
-  const shop = session?.shop || url.searchParams.get("shop") || "";
-  if (!shop) {
-    return json({ ok: false, error: "Missing shop" }, 400);
-  }
-
-  const setting = await ensureSetting(shop);
-  if (!setting.enabled) {
-    return json({ ok: false, error: "Wishlist disabled" }, 403);
-  }
-
-  const active = await isBillingActive(admin);
-  if (!active) {
-    return json({ ok: false, error: "Billing required" }, 402);
-  }
-
-  const body = await readBody(request);
-
-  const customerId = String(body.customerId || "");
-  const productId = String(body.productId || "");
-  const variantId = String(body.variantId || "");
-
-  if (actionName === "toggle") {
-    if (!customerId || !variantId) {
-      return json({ ok: false, error: "Missing customerId/variantId" }, 400);
+    const shop = session?.shop || url.searchParams.get("shop") || "";
+    if (!shop) {
+      return json({ ok: false, error: "Missing shop" }, 400);
     }
 
-    const existing = await prisma.wishlistItem.findFirst({
-      where: { shop, customerId, variantId },
-    });
+    const setting = await ensureSetting(shop);
+    if (!setting.enabled) {
+      return json({ ok: false, error: "Wishlist disabled" }, 403);
+    }
 
-    if (existing) {
-      await prisma.wishlistItem.delete({
-        where: { id: existing.id },
+    const active = await isBillingActive(admin);
+    if (!active) {
+      return json({ ok: false, error: "Billing required" }, 402);
+    }
+
+    const body = await readBody(request);
+
+    if (actionName === "toggle") {
+      const customerId = String(body.customerId || "");
+      const productId = String(body.productId || "");
+      const variantId = String(body.variantId || "");
+
+      if (!customerId || !variantId) {
+        return json({ ok: false, error: "Missing customerId/variantId" }, 400);
+      }
+
+      const existing = await prisma.wishlistItem.findFirst({
+        where: { shop, customerId, variantId },
       });
 
-      return json({ ok: true, active: false }, 200);
+      if (existing) {
+        await prisma.wishlistItem.delete({
+          where: { id: existing.id },
+        });
+
+        return json(
+          {
+            ok: true,
+            active: false,
+            action: "removed",
+            wishlisted: false,
+          },
+          200
+        );
+      }
+
+      await prisma.wishlistItem.create({
+        data: {
+          shop,
+          customerId,
+          productId,
+          variantId,
+        },
+      });
+
+      return json(
+        {
+          ok: true,
+          active: true,
+          action: "added",
+          wishlisted: true,
+        },
+        200
+      );
     }
 
-    await prisma.wishlistItem.create({
-      data: {
-        shop,
-        customerId,
-        productId,
-        variantId,
-      },
-    });
+    if (actionName === "merge") {
+      const fromCustomerId = String(body.fromCustomerId || "");
+      const toCustomerId = String(body.toCustomerId || "");
 
-    return json({ ok: true, active: true }, 200);
-  }
+      if (!fromCustomerId || !toCustomerId) {
+        return json({ ok: false, error: "Missing merge ids" }, 400);
+      }
 
-  if (actionName === "merge") {
-    const fromCustomerId = String(body.fromCustomerId || "");
-    const toCustomerId = String(body.toCustomerId || "");
+      if (fromCustomerId === toCustomerId) {
+        return json({ ok: true, merged: 0 }, 200);
+      }
 
-    if (!fromCustomerId || !toCustomerId) {
-      return json({ ok: false, error: "Missing merge ids" }, 400);
-    }
+      const guestItems = await prisma.wishlistItem.findMany({
+        where: { shop, customerId: fromCustomerId },
+      });
 
-    const guestItems = await prisma.wishlistItem.findMany({
-      where: { shop, customerId: fromCustomerId },
-    });
+      let merged = 0;
 
-    for (const it of guestItems) {
-      await prisma.wishlistItem.upsert({
-        where: {
-          shop_customerId_variantId: {
+      for (const it of guestItems) {
+        await prisma.wishlistItem.upsert({
+          where: {
+            shop_customerId_variantId: {
+              shop,
+              customerId: toCustomerId,
+              variantId: it.variantId,
+            },
+          },
+          update: {},
+          create: {
             shop,
             customerId: toCustomerId,
+            productId: it.productId,
             variantId: it.variantId,
           },
-        },
-        update: {},
-        create: {
-          shop,
-          customerId: toCustomerId,
-          productId: it.productId,
-          variantId: it.variantId,
-        },
+        });
+        merged++;
+      }
+
+      await prisma.wishlistItem.deleteMany({
+        where: { shop, customerId: fromCustomerId },
       });
+
+      return json({ ok: true, merged }, 200);
     }
 
-    await prisma.wishlistItem.deleteMany({
-      where: { shop, customerId: fromCustomerId },
-    });
-
-    return json({ ok: true }, 200);
+    return json({ ok: false, error: "Not found" }, 404);
+  } catch (error) {
+    console.error("apps.wishlist action error:", error);
+    return json({ ok: false, error: error?.message || "Server error" }, 500);
   }
-
-  return json({ ok: false, error: "Not found" }, 404);
 }
