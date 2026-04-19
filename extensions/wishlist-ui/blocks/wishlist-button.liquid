@@ -1,7 +1,7 @@
 {% comment %}
 Wishlist Product Button
-UI polished version
-Functionality kept same
+Premium UI version
+Functionality unchanged
 {% endcomment %}
 
 <style>
@@ -52,7 +52,7 @@ Functionality kept same
   }
 
   .wl-btn.is-active {
-    background: linear-gradient(135deg, #111 0%, #1c1c1c 100%);
+    background: linear-gradient(135deg, #111 0%, #1d1d1d 100%);
     color: #fff;
     border-color: #111;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.16);
@@ -84,68 +84,70 @@ Functionality kept same
     left: 20px;
     bottom: 20px;
     z-index: 99999;
-    width: 68px;
-    height: 68px;
-    border-radius: 22px;
-    background: rgba(10, 10, 10, 0.96);
+    width: 66px;
+    height: 66px;
+    border-radius: 20px;
+    background: linear-gradient(180deg, #111 0%, #050505 100%);
     color: #fff;
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     box-shadow:
-      0 14px 36px rgba(0, 0, 0, 0.2),
-      0 2px 8px rgba(0, 0, 0, 0.1);
+      0 16px 36px rgba(0, 0, 0, 0.22),
+      0 4px 10px rgba(0, 0, 0, 0.12);
     transition:
       transform 0.22s ease,
       box-shadow 0.22s ease,
       background 0.22s ease;
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
     overflow: visible;
   }
 
   .wl-floating-link:hover {
-    transform: translateY(-4px) scale(1.02);
-    background: rgba(18, 18, 18, 0.98);
+    transform: translateY(-4px);
+    background: linear-gradient(180deg, #171717 0%, #080808 100%);
     box-shadow:
-      0 18px 40px rgba(0, 0, 0, 0.24),
-      0 3px 10px rgba(0, 0, 0, 0.12);
+      0 20px 42px rgba(0, 0, 0, 0.24),
+      0 6px 14px rgba(0, 0, 0, 0.14);
   }
 
   .wl-floating-link:focus {
     outline: none;
     box-shadow:
-      0 0 0 4px rgba(255, 255, 255, 0.65),
-      0 14px 36px rgba(0, 0, 0, 0.22);
+      0 0 0 4px rgba(255, 255, 255, 0.68),
+      0 16px 36px rgba(0, 0, 0, 0.22);
   }
 
-  .wl-floating-heart-wrap {
-    position: relative;
-    width: 28px;
-    height: 28px;
+  .wl-floating-icon-wrap {
+    width: 100%;
+    height: 100%;
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    position: relative;
   }
 
   .wl-floating-heart {
-    width: 26px;
-    height: 26px;
-    display: block;
-    color: #ff4d79;
-    filter: drop-shadow(0 2px 6px rgba(255, 77, 121, 0.25));
-    transition: transform 0.22s ease;
+    font-size: 24px;
+    line-height: 1;
+    color: #ff4f87;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(1px);
+    text-shadow: 0 4px 12px rgba(255, 79, 135, 0.25);
+    transition: transform 0.22s ease, color 0.22s ease;
   }
 
   .wl-floating-link:hover .wl-floating-heart {
-    transform: scale(1.07);
+    transform: translateY(1px) scale(1.08);
+    color: #ff5f95;
   }
 
   .wl-floating-count {
     position: absolute;
-    top: -7px;
-    right: -7px;
+    top: -6px;
+    right: -6px;
     min-width: 24px;
     height: 24px;
     padding: 0 6px;
@@ -158,9 +160,9 @@ Functionality kept same
     align-items: center;
     justify-content: center;
     line-height: 1;
-    border: 1px solid rgba(17, 17, 17, 0.08);
+    border: 1px solid rgba(17, 17, 17, 0.06);
     box-shadow:
-      0 8px 18px rgba(0, 0, 0, 0.14),
+      0 10px 20px rgba(0, 0, 0, 0.16),
       0 2px 6px rgba(0, 0, 0, 0.08);
   }
 
@@ -184,8 +186,6 @@ Functionality kept same
     transform: translateY(10px);
     transition: all 0.3s ease;
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.18);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
   }
 
   .wl-toast.show {
@@ -207,31 +207,37 @@ Functionality kept same
     .wl-floating-link {
       left: 14px;
       bottom: 14px;
-      width: 62px;
-      height: 62px;
-      border-radius: 20px;
+      width: 60px;
+      height: 60px;
+      border-radius: 18px;
     }
 
     .wl-floating-heart {
-      width: 24px;
-      height: 24px;
+      font-size: 22px;
     }
 
     .wl-floating-count {
       min-width: 22px;
       height: 22px;
       font-size: 10px;
-      top: -6px;
-      right: -6px;
+      top: -5px;
+      right: -5px;
     }
 
     .wl-toast {
       right: 14px;
-      bottom: 86px;
+      bottom: 84px;
       max-width: calc(100vw - 28px);
     }
   }
 </style>
+
+<link
+  rel="stylesheet"
+  href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+  crossorigin="anonymous"
+  referrerpolicy="no-referrer"
+>
 
 <script>
   window.wishlistCustomerId = {{ customer.id | json }};
@@ -261,15 +267,8 @@ Functionality kept same
   id="wl-floating-link"
   aria-label="Open wishlist page"
 >
-  <span class="wl-floating-heart-wrap">
-    <svg
-      class="wl-floating-heart"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-    </svg>
+  <span class="wl-floating-icon-wrap">
+    <i class="fa-solid fa-heart wl-floating-heart" aria-hidden="true"></i>
 
     <span
       class="wl-floating-count"
