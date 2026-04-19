@@ -23,6 +23,7 @@ export async function loader({ request }) {
   }
 
   const alreadyActive = await hasActiveWishlistSubscription(admin);
+
   if (alreadyActive) {
     return {
       mode: "redirect-app",
@@ -98,9 +99,9 @@ export default function BillingStart() {
           __html: `
             (function () {
               var target = ${JSON.stringify(data?.target || "/app")};
-              if (window.top) {
+              if (window.top && target) {
                 window.top.location.href = target;
-              } else {
+              } else if (target) {
                 window.location.href = target;
               }
             })();

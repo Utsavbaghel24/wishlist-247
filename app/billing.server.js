@@ -61,7 +61,11 @@ export async function hasActiveWishlistSubscription(admin) {
     safeGet(json, "data.currentAppInstallation.activeSubscriptions", []) || [];
 
   return subs.some((s) => {
-    return s && s.name === WISHLIST_PLAN.name && s.status === "ACTIVE";
+    return (
+      s &&
+      s.name === WISHLIST_PLAN.name &&
+      (s.status === "ACTIVE" || s.status === "ACCEPTED")
+    );
   });
 }
 
@@ -74,11 +78,13 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
     throw new Error("Missing shop in startWishlistSubscription()");
   }
 
+  const cleanAppUrl = appUrl.replace(/\/+$/, "");
+
   const params = new URLSearchParams();
   params.set("shop", shop);
   if (host) params.set("host", host);
 
-  const returnUrl = `${appUrl}/app/billing/confirm?${params.toString()}`;
+  const returnUrl = `${cleanAppUrl}/app/billing/confirm?${params.toString()}`;
 
   const isTest =
     process.env.BILLING_TEST_MODE === "true" ||
@@ -107,23 +113,21 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
 
   const payload = await res.json();
 
-  const gqlErrors = payload?.errors || null;
-  if (gqlErrors?.length) {
-    console.error("Shopify GraphQL errors:", gqlErrors);
+  if (payload?.errors?.length) {
+    console.error("Shopify GraphQL errors:", payload.errors);
     throw new Error("Shopify billing GraphQL error");
   }
 
-  const data = payload?.data?.appSubscriptionCreate || null;
+  const data = payload?.data?.appSubscriptionCreate;
 
   if (!data) {
     console.error("Invalid billing response:", payload);
     throw new Error("Invalid response from Shopify");
   }
 
-  const userErrors = data.userErrors || [];
-  if (userErrors.length) {
-    console.error("Shopify billing userErrors:", userErrors);
-    throw new Error(userErrors[0]?.message || "Billing error");
+  if (data.userErrors?.length) {
+    console.error("Shopify billing userErrors:", data.userErrors);
+    throw new Error(data.userErrors[0]?.message || "Billing error");
   }
 
   if (!data.confirmationUrl) {

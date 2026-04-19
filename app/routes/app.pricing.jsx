@@ -1,4 +1,4 @@
-import { useLoaderData } from "react-router";
+import { useLoaderData, Link } from "react-router";
 import { authenticate } from "../shopify.server";
 import { hasActiveWishlistSubscription } from "../billing.server";
 import { WISHLIST_PLAN } from "../billing.plan";
@@ -228,10 +228,8 @@ export default function Pricing() {
               Subscription Active
             </button>
           ) : (
-            <a
-              href={startBillingUrl}
-              target="_top"
-              rel="noreferrer"
+            <Link
+              to={startBillingUrl}
               style={{
                 width: "100%",
                 display: "inline-flex",
@@ -250,7 +248,7 @@ export default function Pricing() {
               }}
             >
               Start {plan.trialDays}-Day Free Trial
-            </a>
+            </Link>
           )}
         </div>
       </div>
