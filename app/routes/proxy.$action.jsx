@@ -13,9 +13,9 @@ function json(data, status = 200) {
 function getQuery(request) {
   const url = new URL(request.url);
   return {
-    url,
+    actionUrl: url,
     shop: String(url.searchParams.get("shop") || ""),
-    customerId: String(url.searchParams.get("customerId") || "guest"),
+    customerId: String(url.searchParams.get("customerId") || ""),
     productId: String(url.searchParams.get("productId") || ""),
     variantId: String(url.searchParams.get("variantId") || ""),
   };
@@ -24,12 +24,85 @@ function getQuery(request) {
 async function readBody(request) {
   const ct = request.headers.get("content-type") || "";
 
-  if (ct.includes("application/json")) {
-    return await request.json();
-  }
+  try {
+    if (ct.includes("application/json")) {
+      return await request.json();
+    }
 
-  const text = await request.text();
-  return Object.fromEntries(new URLSearchParams(text));
+    if (
+      ct.includes("application/x-www-form-urlencoded") ||
+      ct.includes("multipart/form-data")
+    ) {
+      const fd = await request.formData();
+      return Object.fromEntries(fd.entries());
+    }
+
+    const text = await request.text();
+    return Object.fromEntries(new URLSearchParams(text));
+  } catch (e) {
+    console.error("PROXY readBody error:", e);
+    return {};
+  }
+}
+
+async function ensureSetting(shop) {
+  return prisma.wishlistSetting.upsert({
+    where: { shop },
+    update: {},
+    create: { shop, enabled: true },
+  });
+}
+
+async function doToggle({ shop, customerId, productId, variantId }) {
+  if (!shop) return json({ ok: false, error: "Missing shop" }, 400);
+  if (!customerId) return json({ ok: false, error: "Missing customerId" }, 400);
+  if (!variantId) return json({ ok: false, error: "Missing variantId" }, 400);
+
+  try {
+    const existing = await prisma.wishlistItem.findFirst({
+      where: {
+        shop,
+        customerId,
+        variantId,
+      },
+    });
+
+    if (existing) {
+      await prisma.wishlistItem.deleteMany({
+        where: {
+          shop,
+          customerId,
+          variantId,
+        },
+      });
+
+      return json({
+        ok: true,
+        active: false,
+        wishlisted: false,
+        action: "removed",
+      });
+    }
+
+    await prisma.wishlistItem.create({
+      data: {
+        shop,
+        customerId,
+        productId: String(productId || ""),
+        variantId,
+      },
+    });
+
+    return json({
+      ok: true,
+      active: true,
+      wishlisted: true,
+      action: "added",
+    });
+  } catch (e) {
+    console.error("PROXY TOGGLE ERROR:", e);
+    return json({ ok: false, error: e?.message || "Toggle failed" }, 500);
+  }
 }
 
 export async function loader({ request, params }) {
@@ -37,24 +110,41 @@ export async function loader({ request, params }) {
     const action = params.action;
     const { shop, customerId, productId, variantId } = getQuery(request);
 
+    console.log("PROXY LOADER action:", action, "shop:", shop);
+
     if (!action) {
-      return json({ ok: false, error: "Missing action" }, 200);
+      return json({ ok: false, error: "Missing action" }, 400);
     }
 
+    if (!shop) {
+      return json({ ok: false, error: "Missing shop" }, 400);
+    }
+
+    const setting = await ensureSetting(shop);
+
     if (action === "status") {
+      if (!setting.enabled) {
+        return json({
+          ok: true,
+          enabled: false,
+          active: false,
+        });
+      }
+
       return json({
         ok: true,
-        shop,
         enabled: true,
-        billingActive: true,
-        billingDisabled: false,
         active: true,
       });
     }
 
     if (action === "list") {
-      if (!shop) {
-        return json({ ok: false, items: [], error: "Missing shop" }, 200);
+      if (!setting.enabled) {
+        return json({ ok: true, items: [] });
+      }
+
+      if (!customerId) {
+        return json({ ok: true, items: [] });
       }
 
       const items = await prisma.wishlistItem.findMany({
@@ -65,48 +155,15 @@ export async function loader({ request, params }) {
         orderBy: { createdAt: "desc" },
       });
 
-      return json({ ok: true, items }, 200);
+      return json({ ok: true, items });
     }
 
     if (action === "toggle") {
-      if (!shop) return json({ ok: false, error: "Missing shop" }, 200);
-      if (!productId) return json({ ok: false, error: "Missing productId" }, 200);
-      if (!variantId) return json({ ok: false, error: "Missing variantId" }, 200);
-
-      const existing = await prisma.wishlistItem.findFirst({
-        where: {
-          shop,
-          customerId,
-          variantId,
-        },
-      });
-
-      if (existing) {
-        await prisma.wishlistItem.delete({
-          where: { id: existing.id },
-        });
-
-        return json({
-          ok: true,
-          wishlisted: false,
-          action: "removed",
-        });
+      if (!setting.enabled) {
+        return json({ ok: false, error: "Wishlist disabled" }, 403);
       }
 
-      await prisma.wishlistItem.create({
-        data: {
-          shop,
-          customerId,
-          productId,
-          variantId,
-        },
-      });
-
-      return json({
-        ok: true,
-        wishlisted: true,
-        action: "added",
-      });
+      return await doToggle({ shop, customerId, productId, variantId });
     }
 
     return json({ ok: false, error: "Unknown action" }, 404);
@@ -119,62 +176,88 @@ export async function loader({ request, params }) {
 export async function action({ request, params }) {
   try {
     const action = params.action;
-
-    if (action !== "merge") {
-      return json({ ok: false, error: "Unsupported POST action" }, 405);
-    }
-
     const url = new URL(request.url);
     const shop = String(url.searchParams.get("shop") || "");
     const body = await readBody(request);
 
-    const fromCustomerId = String(body.fromCustomerId || "");
-    const toCustomerId = String(body.toCustomerId || "");
+    console.log("PROXY ACTION action:", action, "shop:", shop, "body:", body);
 
-    if (!shop || !fromCustomerId || !toCustomerId) {
-      return json({ ok: false, error: "Missing params" }, 200);
+    if (!action) {
+      return json({ ok: false, error: "Missing action" }, 400);
     }
 
-    if (fromCustomerId === toCustomerId) {
-      return json({ ok: true, merged: 0 }, 200);
+    if (!shop) {
+      return json({ ok: false, error: "Missing shop" }, 400);
     }
 
-    const guestItems = await prisma.wishlistItem.findMany({
-      where: {
-        shop,
-        customerId: fromCustomerId,
-      },
-    });
+    const setting = await ensureSetting(shop);
 
-    let merged = 0;
+    if (!setting.enabled) {
+      return json({ ok: false, error: "Wishlist disabled" }, 403);
+    }
 
-    for (const item of guestItems) {
-      const exists = await prisma.wishlistItem.findFirst({
+    if (action === "toggle") {
+      const customerId = String(body.customerId || "");
+      const productId = String(body.productId || "");
+      const variantId = String(body.variantId || "");
+
+      return await doToggle({ shop, customerId, productId, variantId });
+    }
+
+    if (action === "merge") {
+      const fromCustomerId = String(body.fromCustomerId || "");
+      const toCustomerId = String(body.toCustomerId || "");
+
+      if (!fromCustomerId || !toCustomerId) {
+        return json({ ok: false, error: "Missing params" }, 400);
+      }
+
+      if (fromCustomerId === toCustomerId) {
+        return json({ ok: true, merged: 0 }, 200);
+      }
+
+      const guestItems = await prisma.wishlistItem.findMany({
         where: {
           shop,
-          customerId: toCustomerId,
-          variantId: item.variantId,
+          customerId: fromCustomerId,
         },
       });
 
-      if (!exists) {
-        await prisma.wishlistItem.create({
-          data: {
+      let merged = 0;
+
+      for (const item of guestItems) {
+        const exists = await prisma.wishlistItem.findFirst({
+          where: {
             shop,
             customerId: toCustomerId,
-            productId: item.productId,
             variantId: item.variantId,
           },
         });
-        merged++;
+
+        if (!exists) {
+          await prisma.wishlistItem.create({
+            data: {
+              shop,
+              customerId: toCustomerId,
+              productId: item.productId,
+              variantId: item.variantId,
+            },
+          });
+          merged++;
+        }
       }
 
-      await prisma.wishlistItem.delete({
-        where: { id: item.id },
+      await prisma.wishlistItem.deleteMany({
+        where: {
+          shop,
+          customerId: fromCustomerId,
+        },
       });
+
+      return json({ ok: true, merged }, 200);
     }
 
-    return json({ ok: true, merged }, 200);
+    return json({ ok: false, error: "Unsupported POST action" }, 405);
   } catch (e) {
     console.error("PROXY ACTION ERROR:", e);
     return json({ ok: false, error: e?.message || "Server error" }, 500);
