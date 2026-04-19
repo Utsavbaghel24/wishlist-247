@@ -56,9 +56,6 @@ mutation AppSubscriptionCancel($id: ID!, $prorate: Boolean) {
 }
 `;
 
-/* ===============================
-   HELPERS
-================================ */
 function safeGet(obj, path, fallback) {
   try {
     const parts = path.split(".");
@@ -152,8 +149,6 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   params.set("shop", shop);
   if (host) params.set("host", host);
 
-  // IMPORTANT:
-  // returnUrl must be your APP domain, not admin.shopify.com
   const returnUrl = `${cleanAppUrl}/app/billing/confirm?${params.toString()}`;
 
   const isTest =
