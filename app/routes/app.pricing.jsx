@@ -275,28 +275,28 @@ export default function Pricing() {
               </button>
             </fetcher.Form>
           ) : (
-            <Link
-              to={startBillingUrl}
-              reloadDocument
-              style={{
-                width: "100%",
-                display: "inline-flex",
-                justifyContent: "center",
-                alignItems: "center",
-                textDecoration: "none",
-                background: "#111827",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: "14px",
-                padding: "14px 18px",
-                fontSize: "15px",
-                fontWeight: 700,
-                cursor: "pointer",
-                boxSizing: "border-box",
-              }}
-            >
-              {buttonText}
-            </Link>
+           <a
+  href={startBillingUrl}
+  target="_top"
+  style={{
+    width: "100%",
+    display: "inline-flex",
+    justifyContent: "center",
+    alignItems: "center",
+    textDecoration: "none",
+    background: "#111827",
+    color: "#ffffff",
+    border: "none",
+    borderRadius: "14px",
+    padding: "14px 18px",
+    fontSize: "15px",
+    fontWeight: 700,
+    cursor: "pointer",
+    boxSizing: "border-box",
+  }}
+>
+  {buttonText}
+</a>
           )}
 
           {cancelled ? (
