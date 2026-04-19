@@ -1,9 +1,6 @@
-import { Form, redirect, useLoaderData } from "react-router";
+import { useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import {
-  hasActiveWishlistSubscription,
-  startWishlistSubscription,
-} from "../billing.server";
+import { hasActiveWishlistSubscription } from "../billing.server";
 import { WISHLIST_PLAN } from "../billing.plan";
 
 function json(data, init) {
@@ -42,53 +39,16 @@ export async function loader({ request }) {
   });
 }
 
-export async function action({ request }) {
-  const { admin, session } = await authenticate.admin(request);
-
-  const billingDisabled =
-    process.env.BILLING_DISABLED === "true" ||
-    process.env.BYPASS_BILLING === "1";
-
-  if (billingDisabled) {
-    return json({ ok: true, bypass: true });
-  }
-
-  const formData = await request.formData();
-  const formHost = String(formData.get("host") || "");
-
-  const url = new URL(request.url);
-  const host = formHost || url.searchParams.get("host") || "";
-
-  const alreadyActive = await hasActiveWishlistSubscription(admin);
-  if (alreadyActive) {
-    return redirect(host ? `/app?host=${encodeURIComponent(host)}` : "/app");
-  }
-
-  const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
-
-  if (!appUrl) {
-    return json(
-      { ok: false, error: "Missing SHOPIFY_APP_URL or APP_URL" },
-      { status: 500 },
-    );
-  }
-
-  const confirmationUrl = await startWishlistSubscription({
-    admin,
-    appUrl,
-    shop: session.shop,
-    host,
-  });
-
-  return redirect(confirmationUrl);
-}
-
 export default function Pricing() {
   const data = useLoaderData();
 
   const plan = data?.plan || WISHLIST_PLAN;
   const isActive = !!data?.isActive;
   const host = data?.host || "";
+
+  const startBillingUrl = host
+    ? `/app/billing/start?host=${encodeURIComponent(host)}`
+    : `/app/billing/start`;
 
   return (
     <div
@@ -268,25 +228,27 @@ export default function Pricing() {
               Subscription Active
             </button>
           ) : (
-            <Form method="post" reloadDocument>
-              <input type="hidden" name="host" value={host} />
-              <button
-                type="submit"
-                style={{
-                  width: "100%",
-                  background: "#111827",
-                  color: "#ffffff",
-                  border: "none",
-                  borderRadius: "14px",
-                  padding: "14px 18px",
-                  fontSize: "15px",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                Start {plan.trialDays}-Day Free Trial
-              </button>
-            </Form>
+            <a
+              href={startBillingUrl}
+              style={{
+                width: "100%",
+                display: "inline-flex",
+                justifyContent: "center",
+                alignItems: "center",
+                textDecoration: "none",
+                background: "#111827",
+                color: "#ffffff",
+                border: "none",
+                borderRadius: "14px",
+                padding: "14px 18px",
+                fontSize: "15px",
+                fontWeight: 700,
+                cursor: "pointer",
+                boxSizing: "border-box",
+              }}
+            >
+              Start {plan.trialDays}-Day Free Trial
+            </a>
           )}
         </div>
       </div>

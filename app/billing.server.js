@@ -69,6 +69,7 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   if (!appUrl) {
     throw new Error("Missing appUrl in startWishlistSubscription()");
   }
+
   if (!shop) {
     throw new Error("Missing shop in startWishlistSubscription()");
   }
