@@ -151,7 +151,7 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
 
   // IMPORTANT:
   // billing confirm must be OUTSIDE /app route tree
-  const returnUrl = `${cleanAppUrl}/billing/confirm?${params.toString()}`;
+const returnUrl = `${cleanAppUrl}/billing/confirm?${params.toString()}`;
 
   const isTest =
     process.env.BILLING_TEST_MODE === "true" ||
