@@ -111,10 +111,25 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
     },
   });
 
-  const payload = await res.json();
+  let payload;
+  try {
+    payload = await res.json();
+  } catch (e) {
+    throw new Error("Could not parse Shopify billing response");
+  }
+
+  if (!res.ok) {
+    console.error("Shopify billing HTTP error:", res.status, payload);
+    throw new Error(
+      `Shopify billing request failed with status ${res.status}`,
+    );
+  }
 
   if (payload?.errors?.length) {
-    console.error("Shopify GraphQL errors:", JSON.stringify(payload.errors, null, 2));
+    console.error(
+      "Shopify GraphQL errors:",
+      JSON.stringify(payload.errors, null, 2),
+    );
     throw new Error(
       payload.errors.map((e) => e.message).join(", ") ||
         "Shopify billing GraphQL error",
@@ -124,19 +139,28 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   const data = payload?.data?.appSubscriptionCreate;
 
   if (!data) {
-    console.error("Invalid billing response:", JSON.stringify(payload, null, 2));
+    console.error(
+      "Invalid billing response:",
+      JSON.stringify(payload, null, 2),
+    );
     throw new Error("Invalid response from Shopify");
   }
 
   if (data.userErrors?.length) {
-    console.error("Shopify billing userErrors:", JSON.stringify(data.userErrors, null, 2));
+    console.error(
+      "Shopify billing userErrors:",
+      JSON.stringify(data.userErrors, null, 2),
+    );
     throw new Error(
       data.userErrors.map((e) => e.message).join(", ") || "Billing error",
     );
   }
 
   if (!data.confirmationUrl) {
-    console.error("No confirmationUrl in payload:", JSON.stringify(payload, null, 2));
+    console.error(
+      "No confirmationUrl in payload:",
+      JSON.stringify(payload, null, 2),
+    );
     throw new Error("No confirmation URL returned by Shopify");
   }
 

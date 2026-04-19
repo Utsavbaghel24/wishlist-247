@@ -69,16 +69,13 @@ export async function loader({ request }) {
   } catch (error) {
     console.error("Billing start loader failed:", error);
 
-    return json(
-      {
-        ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unknown billing start error",
-      },
-      { status: 500 },
-    );
+    return json({
+      ok: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown billing start error",
+    });
   }
 }
 

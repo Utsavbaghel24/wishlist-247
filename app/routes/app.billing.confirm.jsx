@@ -1,24 +1,22 @@
 import { redirect, useLoaderData } from "react-router";
-import { authenticate, WISHLIST_PLAN } from "../shopify.server";
+import { authenticate } from "../shopify.server";
+import { hasActiveWishlistSubscription } from "../billing.server";
 
 export async function loader({ request }) {
-  const { billing } = await authenticate.admin(request);
+  const { admin } = await authenticate.admin(request);
 
-  const isTest =
-    process.env.BILLING_TEST_MODE === "true" ||
-    process.env.NODE_ENV !== "production";
+  const url = new URL(request.url);
+  const host = url.searchParams.get("host") || "";
 
-  const billingCheck = await billing.check({
-    plans: [WISHLIST_PLAN],
-    isTest,
-  });
+  const isActive = await hasActiveWishlistSubscription(admin);
 
-  if (billingCheck.hasActivePayment) {
-    throw redirect("/app");
+  if (isActive) {
+    throw redirect(host ? `/app?host=${encodeURIComponent(host)}` : "/app");
   }
 
   return {
     ok: false,
+    host,
     message:
       "Subscription not active yet. Please approve the charge in Shopify and try again.",
   };
@@ -26,6 +24,10 @@ export async function loader({ request }) {
 
 export default function BillingConfirm() {
   const data = useLoaderData();
+
+  const pricingUrl = data?.host
+    ? `/app/pricing?host=${encodeURIComponent(data.host)}`
+    : "/app/pricing";
 
   return (
     <div
@@ -84,7 +86,7 @@ export default function BillingConfirm() {
         </p>
 
         <a
-          href="/app/pricing"
+          href={pricingUrl}
           style={{
             display: "inline-block",
             background: "#111827",
