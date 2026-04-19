@@ -1,243 +1,273 @@
-import { useEffect } from "react";
-import { useFetcher } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
-import { boundary } from "@shopify/shopify-app-react-router/server";
-import { authenticate } from "../shopify.server";
+import {
+  Page,
+  Layout,
+  Card,
+  BlockStack,
+  Text,
+  InlineStack,
+  Badge,
+  List,
+  Box,
+  Divider,
+  Link,
+} from "@shopify/polaris";
 
-export const loader = async ({ request }) => {
-  await authenticate.admin(request);
-
-  return null;
-};
-
-export const action = async ({ request }) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
-  const product = responseJson.data.productCreate.product;
-  const variantId = product.variants.edges[0].node.id;
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-  const variantResponseJson = await variantResponse.json();
-
-  return {
-    product: responseJson.data.productCreate.product,
-    variant: variantResponseJson.data.productVariantsBulkUpdate.productVariants,
-  };
-};
-
-export default function Index() {
-  const fetcher = useFetcher();
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
-
-  useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
-    }
-  }, [fetcher.data?.product?.id, shopify]);
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
-
+export default function AppIndex() {
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
-      </s-button>
+    <Page
+      title="Wishlist247"
+      subtitle="A clean, product-focused wishlist experience for Shopify stores."
+    >
+      <Layout>
+        <Layout.Section>
+          <BlockStack gap="500">
+            <Card roundedAbove="sm">
+              <BlockStack gap="400">
+                <InlineStack align="space-between" blockAlign="center">
+                  <BlockStack gap="100">
+                    <Text as="h2" variant="headingLg">
+                      Welcome to Wishlist247
+                    </Text>
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Wishlist247 is designed to help merchants offer a simple,
+                      elegant, and reliable wishlist experience on their Shopify
+                      storefront. Customers can add products to their wishlist
+                      directly from product pages, review saved items on a
+                      dedicated wishlist page, remove products anytime, and move
+                      products to cart with ease.
+                    </Text>
+                  </BlockStack>
 
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
-      </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references.
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
+                  <Badge tone="success">Live & Working</Badge>
+                </InlineStack>
 
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
-            </s-stack>
-          </s-section>
-        )}
-      </s-section>
+                <Divider />
 
-      <s-section slot="aside" heading="App template specs">
-        <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
-          >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            GraphQL
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
-        </s-paragraph>
-      </s-section>
+                <BlockStack gap="250">
+                  <Text as="h3" variant="headingMd">
+                    What Wishlist247 does
+                  </Text>
 
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
-      </s-section>
-    </s-page>
+                  <List type="bullet">
+                    <List.Item>
+                      Adds a wishlist button on <strong>product pages</strong>.
+                    </List.Item>
+                    <List.Item>
+                      Displays a floating wishlist icon with a live item count.
+                    </List.Item>
+                    <List.Item>
+                      Creates a dedicated wishlist page where customers can view
+                      all saved products.
+                    </List.Item>
+                    <List.Item>
+                      Lets customers remove products from wishlist easily.
+                    </List.Item>
+                    <List.Item>
+                      Supports moving wishlist items to cart from the wishlist
+                      page.
+                    </List.Item>
+                    <List.Item>
+                      Works with a clean and lightweight setup designed to stay
+                      simple, fast, and storefront-friendly.
+                    </List.Item>
+                  </List>
+                </BlockStack>
+              </BlockStack>
+            </Card>
+
+            <Layout>
+              <Layout.Section oneHalf>
+                <Card roundedAbove="sm">
+                  <BlockStack gap="300">
+                    <Text as="h3" variant="headingMd">
+                      Important setup requirement
+                    </Text>
+
+                    <Text as="p" variant="bodyMd">
+                      Wishlist247 requires a dedicated Shopify page for the
+                      wishlist experience.
+                    </Text>
+
+                    <Box
+                      padding="300"
+                      background="bg-surface-secondary"
+                      borderRadius="200"
+                    >
+                      <BlockStack gap="200">
+                        <Text as="p" variant="bodyMd" fontWeight="semibold">
+                          Mandatory page setup
+                        </Text>
+
+                        <List type="bullet">
+                          <List.Item>
+                            Create a Shopify page with the handle{" "}
+                            <strong>/wishlist</strong>.
+                          </List.Item>
+                          <List.Item>
+                            Use the dedicated <strong>wishlist page template</strong>{" "}
+                            created for Wishlist247.
+                          </List.Item>
+                          <List.Item>
+                            Keep the handle exactly as <strong>wishlist</strong>{" "}
+                            so the app button and floating icon always point to
+                            the correct page.
+                          </List.Item>
+                        </List>
+                      </BlockStack>
+                    </Box>
+
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Without this page, customers will still be able to add
+                      items, but they will not have the intended branded wishlist
+                      experience for viewing, removing, and adding products to
+                      cart from one place.
+                    </Text>
+                  </BlockStack>
+                </Card>
+              </Layout.Section>
+
+              <Layout.Section oneHalf>
+                <Card roundedAbove="sm">
+                  <BlockStack gap="300">
+                    <Text as="h3" variant="headingMd">
+                      Recommended merchant flow
+                    </Text>
+
+                    <List type="number">
+                      <List.Item>Install Wishlist247.</List.Item>
+                      <List.Item>
+                        Enable the wishlist app embed and product page block.
+                      </List.Item>
+                      <List.Item>
+                        Create a page named <strong>My Wishlist</strong>.
+                      </List.Item>
+                      <List.Item>
+                        Set the page handle to <strong>/wishlist</strong>.
+                      </List.Item>
+                      <List.Item>
+                        Assign the dedicated wishlist template.
+                      </List.Item>
+                      <List.Item>
+                        Save and test from the storefront product page.
+                      </List.Item>
+                    </List>
+
+                    <Text as="p" variant="bodyMd" tone="subdued">
+                      Wishlist247 is specially designed to keep the experience
+                      clean, intuitive, and conversion-friendly without adding
+                      unnecessary complexity to the storefront.
+                    </Text>
+                  </BlockStack>
+                </Card>
+              </Layout.Section>
+            </Layout>
+
+            <Card roundedAbove="sm">
+              <BlockStack gap="350">
+                <Text as="h3" variant="headingMd">
+                  Customer experience
+                </Text>
+
+                <Text as="p" variant="bodyMd">
+                  Customers interact with Wishlist247 in a very simple way:
+                </Text>
+
+                <List type="bullet">
+                  <List.Item>
+                    On the <strong>product page</strong>, they click{" "}
+                    <strong>Add to Wishlist</strong>.
+                  </List.Item>
+                  <List.Item>
+                    The floating wishlist icon updates with the saved item count.
+                  </List.Item>
+                  <List.Item>
+                    On the <strong>/wishlist</strong> page, they can review
+                    saved products in one place.
+                  </List.Item>
+                  <List.Item>
+                    They can remove unwanted items.
+                  </List.Item>
+                  <List.Item>
+                    They can add selected wishlist products directly to cart.
+                  </List.Item>
+                </List>
+
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  This creates a polished saved-items flow that feels natural for
+                  shoppers and useful for merchants.
+                </Text>
+              </BlockStack>
+            </Card>
+
+            <Card roundedAbove="sm">
+              <BlockStack gap="300">
+                <Text as="h3" variant="headingMd">
+                  Notes for merchants
+                </Text>
+
+                <List type="bullet">
+                  <List.Item>
+                    The wishlist button is intended for <strong>product pages</strong>.
+                  </List.Item>
+                  <List.Item>
+                    The wishlist page should be published and accessible to
+                    storefront visitors.
+                  </List.Item>
+                  <List.Item>
+                    The page handle should remain <strong>/wishlist</strong>.
+                  </List.Item>
+                  <List.Item>
+                    For the best experience, use the dedicated Wishlist247
+                    template created for this app.
+                  </List.Item>
+                </List>
+              </BlockStack>
+            </Card>
+
+            <Card roundedAbove="sm">
+              <BlockStack gap="250">
+                <Text as="h3" variant="headingMd">
+                  Suggested page title and meta description
+                </Text>
+
+                <Box
+                  padding="300"
+                  background="bg-surface-secondary"
+                  borderRadius="200"
+                >
+                  <BlockStack gap="200">
+                    <Text as="p" variant="bodyMd">
+                      <strong>Page title:</strong> My Wishlist
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      <strong>Meta description:</strong> View your saved products,
+                      manage your wishlist, remove items, and add your favorite
+                      picks to cart from one dedicated page.
+                    </Text>
+                    <Text as="p" variant="bodyMd">
+                      <strong>URL handle:</strong> /wishlist
+                    </Text>
+                  </BlockStack>
+                </Box>
+              </BlockStack>
+            </Card>
+
+            <Card roundedAbove="sm">
+              <BlockStack gap="200">
+                <Text as="h3" variant="headingMd">
+                  Support
+                </Text>
+                <Text as="p" variant="bodyMd" tone="subdued">
+                  If the wishlist page is not showing correctly, first confirm
+                  that the page exists, the handle is set to{" "}
+                  <strong>/wishlist</strong>, and the dedicated template has been
+                  assigned correctly.
+                </Text>
+              </BlockStack>
+            </Card>
+          </BlockStack>
+        </Layout.Section>
+      </Layout>
+    </Page>
   );
 }
-
-export const headers = (headersArgs) => {
-  return boundary.headers(headersArgs);
-};
