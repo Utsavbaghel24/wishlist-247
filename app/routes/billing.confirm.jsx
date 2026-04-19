@@ -40,13 +40,17 @@ async function hasActiveWishlistSubscriptionByShop(shop, accessToken) {
 
   if (!response.ok) {
     const text = await response.text();
-    console.error("Billing confirm GraphQL HTTP error:", response.status, text);
+    console.error(
+      "Billing confirm GraphQL HTTP error:",
+      response.status,
+      text,
+    );
     return false;
   }
 
-  const json = await response.json();
+  const payload = await response.json();
   const subscriptions =
-    json?.data?.currentAppInstallation?.activeSubscriptions || [];
+    payload?.data?.currentAppInstallation?.activeSubscriptions || [];
 
   return subscriptions.some(
     (sub) =>
@@ -56,7 +60,7 @@ async function hasActiveWishlistSubscriptionByShop(shop, accessToken) {
   );
 }
 
-function buildAdminAppUrl(shop, host, path = "/app/pricing") {
+function buildEmbeddedAdminUrl(shop, host, path = "/app/pricing") {
   const apiKey = process.env.SHOPIFY_API_KEY;
 
   if (!shop || !apiKey) {
@@ -64,10 +68,10 @@ function buildAdminAppUrl(shop, host, path = "/app/pricing") {
   }
 
   const params = new URLSearchParams();
-  params.set("shop", shop);
   if (host) {
     params.set("host", host);
   }
+  params.set("shop", shop);
 
   return `https://${shop}/admin/apps/${apiKey}${path}?${params.toString()}`;
 }
@@ -99,12 +103,16 @@ export async function loader({ request }) {
     },
   });
 
+  const fallbackRedirect = buildEmbeddedAdminUrl(shop, host, "/app/pricing");
+
   if (!offlineSession?.accessToken) {
+    console.error("No offline session found for shop:", shop);
+
     return json({
       ok: false,
       approved: false,
-      redirectUrl: buildAdminAppUrl(shop, host, "/app/pricing"),
-      message: "No offline session found for this shop.",
+      redirectUrl: fallbackRedirect,
+      message: "No offline session found. Redirecting back to app...",
     });
   }
 
@@ -119,15 +127,15 @@ export async function loader({ request }) {
     return json({
       ok: true,
       approved: true,
-      redirectUrl: buildAdminAppUrl(shop, host, "/app/pricing"),
-      message: "Subscription approved. Redirecting back to Shopify admin...",
+      redirectUrl: fallbackRedirect,
+      message: "Subscription approved. Redirecting back to the app...",
     });
   }
 
   return json({
     ok: true,
     approved: false,
-    redirectUrl: buildAdminAppUrl(shop, host, "/app/pricing"),
+    redirectUrl: fallbackRedirect,
     message: "Subscription not active yet. Redirecting back to pricing...",
   });
 }
@@ -168,7 +176,7 @@ export default function BillingConfirm() {
             color: "#111827",
           }}
         >
-          Redirecting…
+          Redirecting...
         </h1>
 
         <p

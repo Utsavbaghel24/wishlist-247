@@ -65,7 +65,7 @@ function safeGet(obj, path, fallback) {
       cur = cur[p];
     }
     return cur === undefined ? fallback : cur;
-  } catch (e) {
+  } catch {
     return fallback;
   }
 }
@@ -149,7 +149,9 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   params.set("shop", shop);
   if (host) params.set("host", host);
 
-  const returnUrl = `${cleanAppUrl}/app/billing/confirm?${params.toString()}`;
+  // IMPORTANT:
+  // billing confirm must be OUTSIDE /app route tree
+  const returnUrl = `${cleanAppUrl}/billing/confirm?${params.toString()}`;
 
   const isTest =
     process.env.BILLING_TEST_MODE === "true" ||
@@ -183,7 +185,7 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   let payload;
   try {
     payload = await res.json();
-  } catch (e) {
+  } catch {
     throw new Error("Could not parse Shopify billing response");
   }
 
