@@ -1,4 +1,4 @@
-import { useLoaderData, useFetcher } from "react-router";
+import { useLoaderData, useFetcher, Link } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
   hasActiveWishlistSubscription,
@@ -258,8 +258,8 @@ export default function Pricing() {
               </button>
             </fetcher.Form>
           ) : (
-            <a
-              href={startBillingUrl}
+            <Link
+              to={startBillingUrl}
               style={{
                 width: "100%",
                 display: "inline-flex",
@@ -278,7 +278,7 @@ export default function Pricing() {
               }}
             >
               Start {plan.trialDays}-Day Free Trial
-            </a>
+            </Link>
           )}
 
           {cancelled ? (
