@@ -91,9 +91,6 @@ async function doToggle({ shop, customerId, productId, variantId }) {
   );
 }
 
-/* ===========================
-   GET /apps/wishlist/:action
-=========================== */
 export async function loader({ request, params }) {
   try {
     const action = params.action;
@@ -144,23 +141,6 @@ export async function loader({ request, params }) {
       return json({ ok: true, items }, 200);
     }
 
-    if (action === "toggle") {
-      if (!setting.enabled) {
-        return json({ ok: false, error: "Wishlist disabled" }, 403);
-      }
-
-      const active = await isBillingActive(admin);
-      if (!active) {
-        return json({ ok: false, error: "Billing required" }, 402);
-      }
-
-      const customerId = String(url.searchParams.get("customerId") || "");
-      const productId = String(url.searchParams.get("productId") || "");
-      const variantId = String(url.searchParams.get("variantId") || "");
-
-      return await doToggle({ shop, customerId, productId, variantId });
-    }
-
     return json({ ok: false, error: "Not found" }, 404);
   } catch (error) {
     console.error("apps.wishlist loader error:", error);
@@ -168,9 +148,6 @@ export async function loader({ request, params }) {
   }
 }
 
-/* ===========================
-   POST /apps/wishlist/:action
-=========================== */
 export async function action({ request, params }) {
   try {
     const actionName = params.action;
@@ -222,7 +199,7 @@ export async function action({ request, params }) {
       let merged = 0;
 
       for (const it of guestItems) {
-        const existed = await prisma.wishlistItem.findFirst({
+        const exists = await prisma.wishlistItem.findFirst({
           where: {
             shop,
             customerId: toCustomerId,
@@ -230,7 +207,7 @@ export async function action({ request, params }) {
           },
         });
 
-        if (!existed) {
+        if (!exists) {
           await prisma.wishlistItem.create({
             data: {
               shop,
