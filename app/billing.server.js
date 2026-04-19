@@ -39,6 +39,22 @@ query ActiveSubscriptions {
 }
 `;
 
+const CANCEL_SUBSCRIPTION_MUTATION = `#graphql
+mutation AppSubscriptionCancel($id: ID!, $prorate: Boolean) {
+  appSubscriptionCancel(id: $id, prorate: $prorate) {
+    appSubscription {
+      id
+      name
+      status
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
+`;
+
 function safeGet(obj, path, fallback) {
   try {
     const parts = path.split(".");
@@ -53,20 +69,26 @@ function safeGet(obj, path, fallback) {
   }
 }
 
-export async function hasActiveWishlistSubscription(admin) {
+export async function getActiveWishlistSubscription(admin) {
   const res = await admin.graphql(ACTIVE_SUBSCRIPTIONS_QUERY);
   const json = await res.json();
 
   const subs =
     safeGet(json, "data.currentAppInstallation.activeSubscriptions", []) || [];
 
-  return subs.some((s) => {
-    return (
-      s &&
-      s.name === WISHLIST_PLAN.name &&
-      (s.status === "ACTIVE" || s.status === "ACCEPTED")
-    );
-  });
+  return (
+    subs.find(
+      (s) =>
+        s &&
+        s.name === WISHLIST_PLAN.name &&
+        (s.status === "ACTIVE" || s.status === "ACCEPTED"),
+    ) || null
+  );
+}
+
+export async function hasActiveWishlistSubscription(admin) {
+  const activeSub = await getActiveWishlistSubscription(admin);
+  return !!activeSub;
 }
 
 export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
@@ -165,4 +187,55 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   }
 
   return data.confirmationUrl;
+}
+
+export async function cancelWishlistSubscription(admin) {
+  const activeSub = await getActiveWishlistSubscription(admin);
+
+  if (!activeSub?.id) {
+    throw new Error("No active Wishlist subscription found");
+  }
+
+  const res = await admin.graphql(CANCEL_SUBSCRIPTION_MUTATION, {
+    variables: {
+      id: activeSub.id,
+      prorate: true,
+    },
+  });
+
+  const payload = await res.json();
+
+  if (payload?.errors?.length) {
+    console.error(
+      "Shopify cancel GraphQL errors:",
+      JSON.stringify(payload.errors, null, 2),
+    );
+    throw new Error(
+      payload.errors.map((e) => e.message).join(", ") ||
+        "Subscription cancel error",
+    );
+  }
+
+  const data = payload?.data?.appSubscriptionCancel;
+
+  if (!data) {
+    console.error(
+      "Invalid cancel response:",
+      JSON.stringify(payload, null, 2),
+    );
+    throw new Error("Invalid response from Shopify on cancel");
+  }
+
+  if (data.userErrors?.length) {
+    console.error(
+      "Shopify cancel userErrors:",
+      JSON.stringify(data.userErrors, null, 2),
+    );
+    throw new Error(
+      data.userErrors.map((e) => e.message).join(", ") ||
+        "Subscription cancel failed",
+    );
+  }
+
+  return data.appSubscription;
 }

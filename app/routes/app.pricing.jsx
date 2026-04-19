@@ -1,5 +1,10 @@
-import { useLoaderData, Link } from "react-router";
-import { authenticate, WISHLIST_PLAN } from "../shopify.server";
+import { useLoaderData, useFetcher } from "react-router";
+import { authenticate } from "../shopify.server";
+import {
+  hasActiveWishlistSubscription,
+  cancelWishlistSubscription,
+} from "../billing.server";
+import { WISHLIST_PLAN } from "../billing.plan";
 
 function json(data, init) {
   return new Response(JSON.stringify(data), {
@@ -12,7 +17,7 @@ function json(data, init) {
 }
 
 export async function loader({ request }) {
-  const { billing, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   const billingDisabled =
     process.env.BILLING_DISABLED === "true" ||
@@ -26,45 +31,50 @@ export async function loader({ request }) {
   if (billingDisabled) {
     isActive = true;
   } else {
-    const billingCheck = await billing.check({
-      plans: [WISHLIST_PLAN],
-      isTest:
-        process.env.BILLING_TEST_MODE === "true" ||
-        process.env.NODE_ENV !== "production",
-    });
-
-    isActive = billingCheck.hasActivePayment;
+    isActive = await hasActiveWishlistSubscription(admin);
   }
 
   return json({
-    plan: {
-      name: WISHLIST_PLAN,
-      price: 75,
-      currency: "USD",
-      trialDays: 7,
-    },
+    plan: WISHLIST_PLAN,
     isActive,
     shop: session.shop,
     host,
   });
 }
 
+export async function action({ request }) {
+  const { admin } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const intent = String(formData.get("intent") || "");
+
+  if (intent === "cancel_subscription") {
+    await cancelWishlistSubscription(admin);
+    return json({ ok: true, cancelled: true });
+  }
+
+  return json({ ok: false, message: "Invalid action" }, { status: 400 });
+}
+
 export default function Pricing() {
   const data = useLoaderData();
+  const fetcher = useFetcher();
 
-  const plan = data?.plan || {
-    name: "Wishlist Pro",
-    price: 75,
-    currency: "USD",
-    trialDays: 7,
-  };
-
+  const plan = data?.plan || WISHLIST_PLAN;
   const isActive = !!data?.isActive;
   const host = data?.host || "";
 
   const startBillingUrl = host
     ? `/app/billing/start?host=${encodeURIComponent(host)}`
     : `/app/billing/start`;
+
+  const isCancelling =
+    fetcher.state !== "idle" &&
+    fetcher.formData?.get("intent") === "cancel_subscription";
+
+  const cancelled =
+    fetcher.data?.ok === true && fetcher.data?.cancelled === true;
+
+  const showActive = cancelled ? false : isActive;
 
   return (
     <div
@@ -91,14 +101,14 @@ export default function Pricing() {
             display: "inline-block",
             padding: "6px 12px",
             borderRadius: "999px",
-            background: isActive ? "#ecfdf3" : "#eef6ff",
-            color: isActive ? "#027a48" : "#1d4ed8",
+            background: showActive ? "#ecfdf3" : "#eef6ff",
+            color: showActive ? "#027a48" : "#1d4ed8",
             fontSize: "13px",
             fontWeight: 600,
             marginBottom: "14px",
           }}
         >
-          {isActive ? "Subscription Active" : `${plan.trialDays}-Day Free Trial`}
+          {showActive ? "Subscription Active" : `${plan.trialDays}-Day Free Trial`}
         </div>
 
         <h1
@@ -226,26 +236,30 @@ export default function Pricing() {
             {plan.trialDays}-day free trial, then ${plan.price}/month. Cancel anytime.
           </p>
 
-          {isActive ? (
-            <button
-              disabled
-              style={{
-                width: "100%",
-                background: "#e5e7eb",
-                color: "#111827",
-                border: "none",
-                borderRadius: "14px",
-                padding: "14px 18px",
-                fontSize: "15px",
-                fontWeight: 700,
-                cursor: "not-allowed",
-              }}
-            >
-              Subscription Active
-            </button>
+          {showActive ? (
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="cancel_subscription" />
+              <button
+                type="submit"
+                disabled={isCancelling}
+                style={{
+                  width: "100%",
+                  background: isCancelling ? "#e5e7eb" : "#111827",
+                  color: isCancelling ? "#6b7280" : "#ffffff",
+                  border: "none",
+                  borderRadius: "14px",
+                  padding: "14px 18px",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  cursor: isCancelling ? "not-allowed" : "pointer",
+                }}
+              >
+                {isCancelling ? "Cancelling..." : "Cancel Subscription"}
+              </button>
+            </fetcher.Form>
           ) : (
-            <Link
-              to={startBillingUrl}
+            <a
+              href={startBillingUrl}
               style={{
                 width: "100%",
                 display: "inline-flex",
@@ -264,8 +278,21 @@ export default function Pricing() {
               }}
             >
               Start {plan.trialDays}-Day Free Trial
-            </Link>
+            </a>
           )}
+
+          {cancelled ? (
+            <p
+              style={{
+                marginTop: "12px",
+                fontSize: "14px",
+                color: "#027a48",
+                lineHeight: 1.6,
+              }}
+            >
+              Subscription cancelled successfully. Refresh once to see the latest status.
+            </p>
+          ) : null}
         </div>
       </div>
 
