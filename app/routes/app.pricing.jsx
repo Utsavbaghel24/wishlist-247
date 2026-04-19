@@ -1,9 +1,11 @@
-import { useLoaderData, useFetcher, Link } from "react-router";
+import { useEffect } from "react";
+import { useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import {
   hasActiveWishlistSubscription,
   cancelWishlistSubscription,
   getOrCreateShop,
+  startWishlistSubscription,
 } from "../billing.server";
 import { WISHLIST_PLAN } from "../billing.plan";
 
@@ -47,13 +49,66 @@ export async function loader({ request }) {
 }
 
 export async function action({ request }) {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const intent = String(formData.get("intent") || "");
+  const host = String(formData.get("host") || "");
+  const shop = session?.shop;
+
+  if (!shop) {
+    return json({ ok: false, message: "Missing shop session" }, { status: 400 });
+  }
 
   if (intent === "cancel_subscription") {
     await cancelWishlistSubscription(admin);
     return json({ ok: true, cancelled: true });
+  }
+
+  if (intent === "start_subscription") {
+    const billingDisabled =
+      process.env.BILLING_DISABLED === "true" ||
+      process.env.BYPASS_BILLING === "1";
+
+    if (billingDisabled) {
+      return json({
+        ok: true,
+        confirmationUrl: host
+          ? `/app?host=${encodeURIComponent(host)}`
+          : "/app",
+      });
+    }
+
+    const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
+
+    if (!appUrl) {
+      return json(
+        { ok: false, message: "Missing SHOPIFY_APP_URL or APP_URL" },
+        { status: 500 },
+      );
+    }
+
+    const alreadyActive = await hasActiveWishlistSubscription(admin);
+
+    if (alreadyActive) {
+      return json({
+        ok: true,
+        confirmationUrl: host
+          ? `/app?host=${encodeURIComponent(host)}`
+          : "/app",
+      });
+    }
+
+    const confirmationUrl = await startWishlistSubscription({
+      admin,
+      appUrl,
+      shop,
+      host,
+    });
+
+    return json({
+      ok: true,
+      confirmationUrl,
+    });
   }
 
   return json({ ok: false, message: "Invalid action" }, { status: 400 });
@@ -68,13 +123,13 @@ export default function Pricing() {
   const host = data?.host || "";
   const trialUsed = !!data?.trialUsed;
 
-const startBillingUrl = `/app/billing/start?shop=${encodeURIComponent(
-  data.shop,
-)}&host=${encodeURIComponent(host)}`;
-
   const isCancelling =
     fetcher.state !== "idle" &&
     fetcher.formData?.get("intent") === "cancel_subscription";
+
+  const isStarting =
+    fetcher.state !== "idle" &&
+    fetcher.formData?.get("intent") === "start_subscription";
 
   const cancelled =
     fetcher.data?.ok === true && fetcher.data?.cancelled === true;
@@ -90,6 +145,13 @@ const startBillingUrl = `/app/billing/start?shop=${encodeURIComponent(
   const buttonText = trialUsed
     ? "Subscribe Now"
     : `Start ${plan.trialDays}-Day Free Trial`;
+
+  useEffect(() => {
+    const confirmationUrl = fetcher.data?.confirmationUrl;
+    if (fetcher.data?.ok && confirmationUrl) {
+      window.top.location.href = confirmationUrl;
+    }
+  }, [fetcher.data]);
 
   return (
     <div
@@ -275,27 +337,27 @@ const startBillingUrl = `/app/billing/start?shop=${encodeURIComponent(
               </button>
             </fetcher.Form>
           ) : (
-            <Link
-              to={startBillingUrl}
-              style={{
-                width: "100%",
-                display: "inline-flex",
-                justifyContent: "center",
-                alignItems: "center",
-                textDecoration: "none",
-                background: "#111827",
-                color: "#ffffff",
-                border: "none",
-                borderRadius: "14px",
-                padding: "14px 18px",
-                fontSize: "15px",
-                fontWeight: 700,
-                cursor: "pointer",
-                boxSizing: "border-box",
-              }}
-            >
-              {buttonText}
-            </Link>
+            <fetcher.Form method="post">
+              <input type="hidden" name="intent" value="start_subscription" />
+              <input type="hidden" name="host" value={host} />
+              <button
+                type="submit"
+                disabled={isStarting}
+                style={{
+                  width: "100%",
+                  background: isStarting ? "#e5e7eb" : "#111827",
+                  color: isStarting ? "#6b7280" : "#ffffff",
+                  border: "none",
+                  borderRadius: "14px",
+                  padding: "14px 18px",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  cursor: isStarting ? "not-allowed" : "pointer",
+                }}
+              >
+                {isStarting ? "Redirecting..." : buttonText}
+              </button>
+            </fetcher.Form>
           )}
 
           {cancelled ? (
@@ -308,6 +370,19 @@ const startBillingUrl = `/app/billing/start?shop=${encodeURIComponent(
               }}
             >
               Subscription cancelled successfully. Refresh once to see the latest status.
+            </p>
+          ) : null}
+
+          {fetcher.data?.ok === false && fetcher.data?.message ? (
+            <p
+              style={{
+                marginTop: "12px",
+                fontSize: "14px",
+                color: "#b42318",
+                lineHeight: 1.6,
+              }}
+            >
+              {fetcher.data.message}
             </p>
           ) : null}
         </div>
