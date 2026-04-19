@@ -1,9 +1,7 @@
 (function () {
   "use strict";
 
-  if (window.__WISHLIST_UI_INITIALIZED__) {
-    return;
-  }
+  if (window.__WISHLIST_UI_INITIALIZED__) return;
   window.__WISHLIST_UI_INITIALIZED__ = true;
 
   var STORAGE_GUEST_ID = "wl_guest_id";
@@ -163,35 +161,80 @@
 
       return { ok: true, active: true };
     } catch (e) {
+      console.error("wishlist status error:", e);
       return { ok: true, active: true };
     }
   }
 
+  async function apiTogglePost(customerId, productId, variantId) {
+    var res = await fetch(withShop("/apps/wishlist/toggle"), {
+      method: "POST",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        Accept: "application/json",
+      },
+      body: new URLSearchParams({
+        customerId: String(customerId),
+        productId: String(productId),
+        variantId: String(variantId),
+      }),
+    });
+
+    var data = await safeJson(res);
+
+    if (res.status === 402) return { ok: false, billingRequired: true };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: (data && data.error) || ("POST toggle failed (" + res.status + ")"),
+      };
+    }
+
+    return data || { ok: false, error: "Empty POST response" };
+  }
+
+  async function apiToggleGet(customerId, productId, variantId) {
+    var params = new URLSearchParams({
+      customerId: String(customerId),
+      productId: String(productId),
+      variantId: String(variantId),
+    });
+
+    var res = await fetch(withShop("/apps/wishlist/toggle?" + params.toString()), {
+      method: "GET",
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    });
+
+    var data = await safeJson(res);
+
+    if (res.status === 402) return { ok: false, billingRequired: true };
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: (data && data.error) || ("GET toggle failed (" + res.status + ")"),
+      };
+    }
+
+    return data || { ok: false, error: "Empty GET response" };
+  }
+
   async function apiToggle(customerId, productId, variantId) {
     try {
-      var res = await fetch(withShop("/apps/wishlist/toggle"), {
-        method: "POST",
-        credentials: "same-origin",
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-          Accept: "application/json",
-        },
-        body: new URLSearchParams({
-          customerId: String(customerId),
-          productId: String(productId),
-          variantId: String(variantId),
-        }),
-      });
+      var postResult = await apiTogglePost(customerId, productId, variantId);
+      if (postResult && postResult.ok) return postResult;
+      if (postResult && postResult.billingRequired) return postResult;
 
-      var data = await safeJson(res);
+      console.warn("POST toggle failed, trying GET fallback:", postResult);
 
-      if (res.status === 402) return { ok: false, billingRequired: true };
-      if (!res.ok) return { ok: false, error: (data && data.error) || "Request failed" };
-
-      return data || { ok: false, error: "Empty response" };
+      var getResult = await apiToggleGet(customerId, productId, variantId);
+      return getResult;
     } catch (e) {
-      return { ok: false, error: e.message || "Unknown error" };
+      console.error("toggle error:", e);
+      return { ok: false, error: e.message || "Toggle failed" };
     }
   }
 
@@ -207,11 +250,12 @@
       );
 
       if (res.status === 402) return { items: [], billingRequired: true };
-      if (!res.ok) return { items: [] };
+      if (!res.ok) return { items: [], error: "List failed (" + res.status + ")" };
 
       var data = await safeJson(res);
       return data || { items: [] };
     } catch (e) {
+      console.error("wishlist list error:", e);
       return { items: [] };
     }
   }
@@ -236,6 +280,7 @@
       var data = await safeJson(res);
       return data || { ok: false };
     } catch (e) {
+      console.error("wishlist merge error:", e);
       return { ok: false };
     }
   }
@@ -350,8 +395,8 @@
         console.error("Wishlist toggle failed:", result);
         showToast(
           result && result.error
-            ? String(result.error).slice(0, 120)
-            : "Add to wishlist failed",
+            ? String(result.error).slice(0, 140)
+            : "Request failed",
           true
         );
       }
