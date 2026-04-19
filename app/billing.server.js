@@ -9,12 +9,14 @@ mutation AppSubscriptionCreate(
   $returnUrl: URL!
   $trialDays: Int
   $lineItems: [AppSubscriptionLineItemInput!]!
+  $test: Boolean
 ) {
   appSubscriptionCreate(
     name: $name
     returnUrl: $returnUrl
     trialDays: $trialDays
     lineItems: $lineItems
+    test: $test
   ) {
     confirmationUrl
     userErrors {
@@ -81,11 +83,16 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
 
   const returnUrl = appUrl + "/app/billing/confirm?" + params.toString();
 
+  const isTest =
+    process.env.BILLING_TEST_MODE === "true" ||
+    process.env.NODE_ENV !== "production";
+
   const res = await admin.graphql(CREATE_SUBSCRIPTION_MUTATION, {
     variables: {
       name: WISHLIST_PLAN.name,
       returnUrl,
       trialDays: WISHLIST_PLAN.trialDays,
+      test: isTest,
       lineItems: [
         {
           plan: {
@@ -111,11 +118,15 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
 
   const data = payload?.data?.appSubscriptionCreate || null;
 
-  if (!data) throw new Error("Invalid response from Shopify");
+  if (!data) {
+    console.error("Invalid billing response:", payload);
+    throw new Error("Invalid response from Shopify");
+  }
 
   const userErrors = data.userErrors || [];
   if (userErrors.length) {
     const msg = userErrors[0]?.message || "Billing error";
+    console.error("Shopify billing userErrors:", userErrors);
     throw new Error(msg);
   }
 

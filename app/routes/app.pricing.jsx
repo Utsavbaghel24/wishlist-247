@@ -1,5 +1,9 @@
-import { Form, useLoaderData } from "react-router";
+import { Form, redirect, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+import {
+  hasActiveWishlistSubscription,
+  startWishlistSubscription,
+} from "../billing.server";
 import { WISHLIST_PLAN } from "../billing.plan";
 
 function json(data, init) {
@@ -13,39 +17,29 @@ function json(data, init) {
 }
 
 export async function loader({ request }) {
-  const { billing, session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   const billingDisabled =
     process.env.BILLING_DISABLED === "true" ||
     process.env.BYPASS_BILLING === "1";
 
-  const isTest = process.env.NODE_ENV !== "production";
-
   let isActive = false;
-  let subscriptions = [];
 
   if (billingDisabled) {
     isActive = true;
   } else {
-    const billingStatus = await billing.check({
-      plans: [WISHLIST_PLAN],
-      isTest,
-    });
-
-    isActive = billingStatus.hasActivePayment;
-    subscriptions = billingStatus.appSubscriptions || [];
+    isActive = await hasActiveWishlistSubscription(admin);
   }
 
   return json({
     plan: WISHLIST_PLAN,
     isActive,
-    subscriptions,
     shop: session.shop,
   });
 }
 
 export async function action({ request }) {
-  const { billing } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   const billingDisabled =
     process.env.BILLING_DISABLED === "true" ||
@@ -55,18 +49,14 @@ export async function action({ request }) {
     return json({ ok: true, bypass: true });
   }
 
-  const isTest = process.env.NODE_ENV !== "production";
-
-  const billingStatus = await billing.check({
-    plans: [WISHLIST_PLAN],
-    isTest,
-  });
-
-  if (billingStatus.hasActivePayment) {
-    return json({ ok: true, alreadyActive: true });
+  const alreadyActive = await hasActiveWishlistSubscription(admin);
+  if (alreadyActive) {
+    return redirect("/app");
   }
 
   const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
+  const url = new URL(request.url);
+  const host = url.searchParams.get("host") || "";
 
   if (!appUrl) {
     return json(
@@ -75,12 +65,14 @@ export async function action({ request }) {
     );
   }
 
-  return billing.request({
-    plan: WISHLIST_PLAN,
-    isTest,
-    trialDays: WISHLIST_PLAN.trialDays,
-    returnUrl: `${appUrl}/app/billing/confirm`,
+  const confirmationUrl = await startWishlistSubscription({
+    admin,
+    appUrl,
+    shop: session.shop,
+    host,
   });
+
+  return redirect(confirmationUrl);
 }
 
 export default function Pricing() {
@@ -151,6 +143,7 @@ export default function Pricing() {
       </div>
 
       <div
+        className="wishlist247-pricing-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(0, 1.5fr) minmax(320px, 0.9fr)",
