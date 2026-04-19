@@ -56,6 +56,9 @@ mutation AppSubscriptionCancel($id: ID!, $prorate: Boolean) {
 }
 `;
 
+/* ===============================
+   HELPERS
+================================ */
 function safeGet(obj, path, fallback) {
   try {
     const parts = path.split(".");
@@ -68,6 +71,28 @@ function safeGet(obj, path, fallback) {
   } catch (e) {
     return fallback;
   }
+}
+
+function buildEmbeddedAdminAppUrl({ shop, host, path = "/app" }) {
+  const apiKey = process.env.SHOPIFY_API_KEY;
+
+  if (!shop) {
+    throw new Error("Missing shop in buildEmbeddedAdminAppUrl()");
+  }
+
+  if (!apiKey) {
+    throw new Error("Missing SHOPIFY_API_KEY");
+  }
+
+  const cleanPath = path.startsWith("/") ? path : `/${path}`;
+
+  const params = new URLSearchParams();
+  params.set("shop", shop);
+  if (host) {
+    params.set("host", host);
+  }
+
+  return `https://${shop}/admin/apps/${apiKey}${cleanPath}?${params.toString()}`;
 }
 
 /* ===============================
@@ -135,21 +160,9 @@ export async function hasActiveWishlistSubscription(admin) {
 }
 
 export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
-  if (!appUrl) {
-    throw new Error("Missing appUrl in startWishlistSubscription()");
-  }
-
   if (!shop) {
     throw new Error("Missing shop in startWishlistSubscription()");
   }
-
-  const cleanAppUrl = appUrl.replace(/\/+$/, "");
-
-  const params = new URLSearchParams();
-  params.set("shop", shop);
-  if (host) params.set("host", host);
-
-  const returnUrl = `${cleanAppUrl}/app/billing/confirm?${params.toString()}`;
 
   const isTest =
     process.env.BILLING_TEST_MODE === "true" ||
@@ -157,6 +170,14 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
 
   const shopRecord = await getOrCreateShop(shop);
   const trialDays = shopRecord.trialUsed ? 0 : WISHLIST_PLAN.trialDays;
+
+  // IMPORTANT:
+  // Return to the EMBEDDED ADMIN APP URL, not the plain Render URL.
+  const returnUrl = buildEmbeddedAdminAppUrl({
+    shop,
+    host,
+    path: "/app/billing/confirm",
+  });
 
   const res = await admin.graphql(CREATE_SUBSCRIPTION_MUTATION, {
     variables: {
