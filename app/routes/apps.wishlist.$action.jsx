@@ -37,31 +37,21 @@ async function readBody(request) {
 }
 
 async function ensureSetting(shop) {
-  try {
-    return await prisma.wishlistSetting.upsert({
-      where: { shop },
-      update: {},
-      create: { shop, enabled: true },
-    });
-  } catch (error) {
-    console.error("ensureSetting error:", error);
-    throw error;
-  }
+  return prisma.wishlistSetting.upsert({
+    where: { shop },
+    update: {},
+    create: { shop, enabled: true },
+  });
 }
 
 async function isBillingActive(admin) {
-  try {
-    const bypass =
-      process.env.BILLING_DISABLED === "true" ||
-      process.env.BYPASS_BILLING === "1";
+  const bypass =
+    process.env.BILLING_DISABLED === "true" ||
+    process.env.BYPASS_BILLING === "1";
 
-    if (bypass) return true;
+  if (bypass) return true;
 
-    return await hasActiveWishlistSubscription(admin);
-  } catch (error) {
-    console.error("isBillingActive error:", error);
-    throw error;
-  }
+  return await hasActiveWishlistSubscription(admin);
 }
 
 async function doToggle({ shop, customerId, productId, variantId }) {
@@ -85,8 +75,6 @@ async function doToggle({ shop, customerId, productId, variantId }) {
       where: { shop, customerId, variantId },
     });
 
-    console.log("existing wishlist item:", existing ? existing.id : null);
-
     if (existing) {
       await prisma.wishlistItem.deleteMany({
         where: {
@@ -107,7 +95,7 @@ async function doToggle({ shop, customerId, productId, variantId }) {
       );
     }
 
-    const created = await prisma.wishlistItem.create({
+    await prisma.wishlistItem.create({
       data: {
         shop,
         customerId,
@@ -115,8 +103,6 @@ async function doToggle({ shop, customerId, productId, variantId }) {
         variantId,
       },
     });
-
-    console.log("wishlist item created:", created?.id);
 
     return json(
       {
@@ -139,17 +125,14 @@ async function doToggle({ shop, customerId, productId, variantId }) {
   }
 }
 
-/* ===========================
-   GET /apps/wishlist/:action
-=========================== */
 export async function loader({ request, params }) {
   try {
     const action = params.action;
     const url = new URL(request.url);
 
     const { admin, session } = await authenticate.public.appProxy(request);
-
     const shop = session?.shop || url.searchParams.get("shop") || "";
+
     console.log("loader action:", action, "shop:", shop);
 
     if (!shop) {
@@ -201,17 +184,14 @@ export async function loader({ request, params }) {
   }
 }
 
-/* ===========================
-   POST /apps/wishlist/:action
-=========================== */
 export async function action({ request, params }) {
   try {
     const actionName = params.action;
     const url = new URL(request.url);
 
     const { admin, session } = await authenticate.public.appProxy(request);
-
     const shop = session?.shop || url.searchParams.get("shop") || "";
+
     console.log("action name:", actionName, "shop:", shop);
 
     if (!shop) {
