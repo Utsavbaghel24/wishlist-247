@@ -1,8 +1,10 @@
 import { useLoaderData, useFetcher, Link } from "react-router";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
 import {
   hasActiveWishlistSubscription,
   cancelWishlistSubscription,
+  getOrCreateShop,
 } from "../billing.server";
 import { WISHLIST_PLAN } from "../billing.plan";
 
@@ -34,11 +36,14 @@ export async function loader({ request }) {
     isActive = await hasActiveWishlistSubscription(admin);
   }
 
+  const shopRecord = await getOrCreateShop(session.shop);
+
   return json({
     plan: WISHLIST_PLAN,
     isActive,
     shop: session.shop,
     host,
+    trialUsed: !!shopRecord?.trialUsed,
   });
 }
 
@@ -62,6 +67,7 @@ export default function Pricing() {
   const plan = data?.plan || WISHLIST_PLAN;
   const isActive = !!data?.isActive;
   const host = data?.host || "";
+  const trialUsed = !!data?.trialUsed;
 
   const startBillingUrl = host
     ? `/app/billing/start?host=${encodeURIComponent(host)}`
@@ -75,6 +81,16 @@ export default function Pricing() {
     fetcher.data?.ok === true && fetcher.data?.cancelled === true;
 
   const showActive = cancelled ? false : isActive;
+
+  const badgeText = showActive
+    ? "Subscription Active"
+    : trialUsed
+      ? "Subscription Required"
+      : `${plan.trialDays}-Day Free Trial`;
+
+  const buttonText = trialUsed
+    ? "Subscribe Now"
+    : `Start ${plan.trialDays}-Day Free Trial`;
 
   return (
     <div
@@ -108,7 +124,7 @@ export default function Pricing() {
             marginBottom: "14px",
           }}
         >
-          {showActive ? "Subscription Active" : `${plan.trialDays}-Day Free Trial`}
+          {badgeText}
         </div>
 
         <h1
@@ -233,7 +249,9 @@ export default function Pricing() {
               fontSize: "14px",
             }}
           >
-            {plan.trialDays}-day free trial, then ${plan.price}/month. Cancel anytime.
+            {trialUsed
+              ? `Subscribe for $${plan.price}/month. Trial already used on this store.`
+              : `${plan.trialDays}-day free trial, then $${plan.price}/month. Cancel anytime.`}
           </p>
 
           {showActive ? (
@@ -277,7 +295,7 @@ export default function Pricing() {
                 boxSizing: "border-box",
               }}
             >
-              Start {plan.trialDays}-Day Free Trial
+              {buttonText}
             </Link>
           )}
 

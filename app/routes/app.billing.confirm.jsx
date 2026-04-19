@@ -1,9 +1,12 @@
 import { redirect, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
-import { hasActiveWishlistSubscription } from "../billing.server";
+import {
+  hasActiveWishlistSubscription,
+  markTrialUsed,
+} from "../billing.server";
 
 export async function loader({ request }) {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
   const url = new URL(request.url);
   const host = url.searchParams.get("host") || "";
@@ -11,6 +14,10 @@ export async function loader({ request }) {
   const isActive = await hasActiveWishlistSubscription(admin);
 
   if (isActive) {
+    if (session?.shop) {
+      await markTrialUsed(session.shop);
+    }
+
     throw redirect(host ? `/app?host=${encodeURIComponent(host)}` : "/app");
   }
 

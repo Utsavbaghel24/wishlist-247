@@ -1,3 +1,4 @@
+import prisma from "./db.server";
 import { WISHLIST_PLAN } from "./billing.plan";
 
 /* ===============================
@@ -69,6 +70,48 @@ function safeGet(obj, path, fallback) {
   }
 }
 
+/* ===============================
+   SHOP / TRIAL HELPERS
+================================ */
+export async function getOrCreateShop(shopDomain) {
+  let shop = await prisma.shop.findUnique({
+    where: { id: shopDomain },
+  });
+
+  if (!shop) {
+    shop = await prisma.shop.create({
+      data: {
+        id: shopDomain,
+        trialUsed: false,
+      },
+    });
+  }
+
+  return shop;
+}
+
+export async function hasConsumedTrial(shopDomain) {
+  const shop = await prisma.shop.findUnique({
+    where: { id: shopDomain },
+  });
+
+  return !!shop?.trialUsed;
+}
+
+export async function markTrialUsed(shopDomain) {
+  return prisma.shop.upsert({
+    where: { id: shopDomain },
+    update: { trialUsed: true },
+    create: {
+      id: shopDomain,
+      trialUsed: true,
+    },
+  });
+}
+
+/* ===============================
+   SUBSCRIPTION HELPERS
+================================ */
 export async function getActiveWishlistSubscription(admin) {
   const res = await admin.graphql(ACTIVE_SUBSCRIPTIONS_QUERY);
   const json = await res.json();
@@ -112,11 +155,14 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
     process.env.BILLING_TEST_MODE === "true" ||
     process.env.NODE_ENV !== "production";
 
+  const shopRecord = await getOrCreateShop(shop);
+  const trialDays = shopRecord.trialUsed ? 0 : WISHLIST_PLAN.trialDays;
+
   const res = await admin.graphql(CREATE_SUBSCRIPTION_MUTATION, {
     variables: {
       name: WISHLIST_PLAN.name,
       returnUrl,
-      trialDays: WISHLIST_PLAN.trialDays,
+      trialDays,
       test: isTest,
       lineItems: [
         {
@@ -126,6 +172,7 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
                 amount: Number(WISHLIST_PLAN.price),
                 currencyCode: WISHLIST_PLAN.currency,
               },
+              interval: "EVERY_30_DAYS",
             },
           },
         },
