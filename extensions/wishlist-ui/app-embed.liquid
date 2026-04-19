@@ -1,7 +1,7 @@
 {%- comment -%}
   Wishlist App Embed
   - Loads wishlist.js only after status check
-  - Does not load wishlist-header.js
+  - Loads merchant custom CSS from shop metafield
 {%- endcomment -%}
 
 <script>
@@ -9,6 +9,13 @@
   window.WISHLIST_PAGE_URL = "/pages/wishlist";
   window.WISHLIST_SHOP = {{ shop.permanent_domain | json }};
 </script>
+
+{% assign wishlist247_custom_css = shop.metafields.wishlist247.custom_css.value %}
+{% if wishlist247_custom_css != blank %}
+  <style id="wishlist247-custom-css">
+    {{ wishlist247_custom_css }}
+  </style>
+{% endif %}
 
 <script>
   (function () {
