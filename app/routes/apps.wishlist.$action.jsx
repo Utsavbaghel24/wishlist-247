@@ -15,82 +15,133 @@ function json(data, status = 200) {
 async function readBody(request) {
   const ct = request.headers.get("content-type") || "";
 
-  if (ct.includes("application/json")) {
-    return await request.json();
-  }
+  try {
+    if (ct.includes("application/json")) {
+      return await request.json();
+    }
 
-  if (ct.includes("application/x-www-form-urlencoded") || ct.includes("multipart/form-data")) {
-    const fd = await request.formData();
-    return Object.fromEntries(fd.entries());
-  }
+    if (
+      ct.includes("application/x-www-form-urlencoded") ||
+      ct.includes("multipart/form-data")
+    ) {
+      const fd = await request.formData();
+      return Object.fromEntries(fd.entries());
+    }
 
-  const text = await request.text();
-  return Object.fromEntries(new URLSearchParams(text));
+    const text = await request.text();
+    return Object.fromEntries(new URLSearchParams(text));
+  } catch (error) {
+    console.error("readBody error:", error);
+    return {};
+  }
 }
 
 async function ensureSetting(shop) {
-  return prisma.wishlistSetting.upsert({
-    where: { shop },
-    update: {},
-    create: { shop, enabled: true },
-  });
+  try {
+    return await prisma.wishlistSetting.upsert({
+      where: { shop },
+      update: {},
+      create: { shop, enabled: true },
+    });
+  } catch (error) {
+    console.error("ensureSetting error:", error);
+    throw error;
+  }
 }
 
 async function isBillingActive(admin) {
-  const bypass =
-    process.env.BILLING_DISABLED === "true" ||
-    process.env.BYPASS_BILLING === "1";
+  try {
+    const bypass =
+      process.env.BILLING_DISABLED === "true" ||
+      process.env.BYPASS_BILLING === "1";
 
-  if (bypass) return true;
+    if (bypass) return true;
 
-  return await hasActiveWishlistSubscription(admin);
+    return await hasActiveWishlistSubscription(admin);
+  } catch (error) {
+    console.error("isBillingActive error:", error);
+    throw error;
+  }
 }
 
 async function doToggle({ shop, customerId, productId, variantId }) {
+  console.log("doToggle called with:", {
+    shop,
+    customerId,
+    productId,
+    variantId,
+  });
+
+  if (!shop) {
+    return json({ ok: false, error: "Missing shop" }, 400);
+  }
+
   if (!customerId || !variantId) {
     return json({ ok: false, error: "Missing customerId/variantId" }, 400);
   }
 
-  const existing = await prisma.wishlistItem.findFirst({
-    where: { shop, customerId, variantId },
-  });
-
-  if (existing) {
-    await prisma.wishlistItem.delete({
-      where: { id: existing.id },
+  try {
+    const existing = await prisma.wishlistItem.findFirst({
+      where: { shop, customerId, variantId },
     });
+
+    console.log("existing wishlist item:", existing ? existing.id : null);
+
+    if (existing) {
+      await prisma.wishlistItem.deleteMany({
+        where: {
+          shop,
+          customerId,
+          variantId,
+        },
+      });
+
+      return json(
+        {
+          ok: true,
+          active: false,
+          action: "removed",
+          wishlisted: false,
+        },
+        200
+      );
+    }
+
+    const created = await prisma.wishlistItem.create({
+      data: {
+        shop,
+        customerId,
+        productId: String(productId || ""),
+        variantId,
+      },
+    });
+
+    console.log("wishlist item created:", created?.id);
 
     return json(
       {
         ok: true,
-        active: false,
-        action: "removed",
-        wishlisted: false,
+        active: true,
+        action: "added",
+        wishlisted: true,
       },
       200
     );
+  } catch (error) {
+    console.error("doToggle prisma error:", error);
+    return json(
+      {
+        ok: false,
+        error: error?.message || "Toggle database error",
+      },
+      500
+    );
   }
-
-  await prisma.wishlistItem.create({
-    data: {
-      shop,
-      customerId,
-      productId,
-      variantId,
-    },
-  });
-
-  return json(
-    {
-      ok: true,
-      active: true,
-      action: "added",
-      wishlisted: true,
-    },
-    200
-  );
 }
 
+/* ===========================
+   GET /apps/wishlist/:action
+=========================== */
 export async function loader({ request, params }) {
   try {
     const action = params.action;
@@ -99,6 +150,8 @@ export async function loader({ request, params }) {
     const { admin, session } = await authenticate.public.appProxy(request);
 
     const shop = session?.shop || url.searchParams.get("shop") || "";
+    console.log("loader action:", action, "shop:", shop);
+
     if (!shop) {
       return json({ ok: false, error: "Missing shop" }, 400);
     }
@@ -148,6 +201,9 @@ export async function loader({ request, params }) {
   }
 }
 
+/* ===========================
+   POST /apps/wishlist/:action
+=========================== */
 export async function action({ request, params }) {
   try {
     const actionName = params.action;
@@ -156,11 +212,14 @@ export async function action({ request, params }) {
     const { admin, session } = await authenticate.public.appProxy(request);
 
     const shop = session?.shop || url.searchParams.get("shop") || "";
+    console.log("action name:", actionName, "shop:", shop);
+
     if (!shop) {
       return json({ ok: false, error: "Missing shop" }, 400);
     }
 
     const setting = await ensureSetting(shop);
+
     if (!setting.enabled) {
       return json({ ok: false, error: "Wishlist disabled" }, 403);
     }
@@ -171,6 +230,7 @@ export async function action({ request, params }) {
     }
 
     const body = await readBody(request);
+    console.log("POST body:", body);
 
     if (actionName === "toggle") {
       const customerId = String(body.customerId || "");
