@@ -61,11 +61,7 @@ export async function hasActiveWishlistSubscription(admin) {
     safeGet(json, "data.currentAppInstallation.activeSubscriptions", []) || [];
 
   return subs.some(function (s) {
-    return (
-      s &&
-      s.name === WISHLIST_PLAN.name &&
-      s.status === "ACTIVE"
-    );
+    return s && s.name === WISHLIST_PLAN.name && s.status === "ACTIVE";
   });
 }
 
@@ -81,7 +77,7 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   params.set("shop", shop);
   if (host) params.set("host", host);
 
-  const returnUrl = appUrl + "/app/billing/confirm?" + params.toString();
+  const returnUrl = `${appUrl}/app/billing/confirm?${params.toString()}`;
 
   const isTest =
     process.env.BILLING_TEST_MODE === "true" ||
@@ -111,7 +107,7 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
   const payload = await res.json();
 
   const gqlErrors = payload?.errors || null;
-  if (gqlErrors && gqlErrors.length) {
+  if (gqlErrors?.length) {
     console.error("Shopify GraphQL errors:", gqlErrors);
     throw new Error("Shopify billing GraphQL error");
   }
@@ -125,9 +121,8 @@ export async function startWishlistSubscription({ admin, appUrl, shop, host }) {
 
   const userErrors = data.userErrors || [];
   if (userErrors.length) {
-    const msg = userErrors[0]?.message || "Billing error";
     console.error("Shopify billing userErrors:", userErrors);
-    throw new Error(msg);
+    throw new Error(userErrors[0]?.message || "Billing error");
   }
 
   if (!data.confirmationUrl) {

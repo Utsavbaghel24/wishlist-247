@@ -23,6 +23,9 @@ export async function loader({ request }) {
     process.env.BILLING_DISABLED === "true" ||
     process.env.BYPASS_BILLING === "1";
 
+  const url = new URL(request.url);
+  const host = url.searchParams.get("host") || "";
+
   let isActive = false;
 
   if (billingDisabled) {
@@ -35,6 +38,7 @@ export async function loader({ request }) {
     plan: WISHLIST_PLAN,
     isActive,
     shop: session.shop,
+    host,
   });
 }
 
@@ -49,14 +53,18 @@ export async function action({ request }) {
     return json({ ok: true, bypass: true });
   }
 
+  const formData = await request.formData();
+  const formHost = String(formData.get("host") || "");
+
+  const url = new URL(request.url);
+  const host = formHost || url.searchParams.get("host") || "";
+
   const alreadyActive = await hasActiveWishlistSubscription(admin);
   if (alreadyActive) {
-    return redirect("/app");
+    return redirect(host ? `/app?host=${encodeURIComponent(host)}` : "/app");
   }
 
   const appUrl = process.env.SHOPIFY_APP_URL || process.env.APP_URL;
-  const url = new URL(request.url);
-  const host = url.searchParams.get("host") || "";
 
   if (!appUrl) {
     return json(
@@ -80,6 +88,7 @@ export default function Pricing() {
 
   const plan = data?.plan || WISHLIST_PLAN;
   const isActive = !!data?.isActive;
+  const host = data?.host || "";
 
   return (
     <div
@@ -260,6 +269,7 @@ export default function Pricing() {
             </button>
           ) : (
             <Form method="post" reloadDocument>
+              <input type="hidden" name="host" value={host} />
               <button
                 type="submit"
                 style={{
