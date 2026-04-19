@@ -1,16 +1,4 @@
 import { Form, useLoaderData } from "react-router";
-import {
-  Page,
-  Layout,
-  Card,
-  Text,
-  Button,
-  List,
-  BlockStack,
-  InlineStack,
-  Badge,
-} from "@shopify/polaris";
-
 import { authenticate } from "../shopify.server";
 import { WISHLIST_PLAN } from "../billing.plan";
 
@@ -102,70 +90,211 @@ export default function Pricing() {
   const isActive = !!data?.isActive;
 
   return (
-    <Page
-      title="Pricing"
-      subtitle={`Activate ${plan.name} to enable wishlist for your storefront.`}
+    <div
+      style={{
+        padding: "24px",
+        maxWidth: "1100px",
+        margin: "0 auto",
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      }}
     >
-      <Layout>
-        <Layout.Section>
-          <Card padding="500">
-            <BlockStack gap="400">
-              <Text as="h2" variant="headingLg">
-                {plan.name}
-              </Text>
+      <div
+        style={{
+          background: "#ffffff",
+          border: "1px solid #e5e7eb",
+          borderRadius: "18px",
+          padding: "28px",
+          marginBottom: "22px",
+          boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+        }}
+      >
+        <div
+          style={{
+            display: "inline-block",
+            padding: "6px 12px",
+            borderRadius: "999px",
+            background: isActive ? "#ecfdf3" : "#eef6ff",
+            color: isActive ? "#027a48" : "#1d4ed8",
+            fontSize: "13px",
+            fontWeight: 600,
+            marginBottom: "14px",
+          }}
+        >
+          {isActive ? "Subscription Active" : `${plan.trialDays}-Day Free Trial`}
+        </div>
 
-              <Text as="p" variant="bodyMd">
-                Wishlist247 gives your store a clean, professional wishlist system
-                with a product page wishlist button, a floating wishlist icon,
-                and a dedicated wishlist page with add-to-cart and remove actions.
-              </Text>
+        <h1
+          style={{
+            fontSize: "32px",
+            lineHeight: 1.2,
+            margin: "0 0 12px 0",
+            color: "#111827",
+          }}
+        >
+          Wishlist247 Pricing
+        </h1>
 
-              <List type="bullet">
-                <List.Item>Wishlist button on product pages</List.Item>
-                <List.Item>Floating wishlist icon with live count</List.Item>
-                <List.Item>Dedicated wishlist page</List.Item>
-                <List.Item>Remove items from wishlist</List.Item>
-                <List.Item>Add wishlist items directly to cart</List.Item>
-                <List.Item>Billing-protected access for active merchants</List.Item>
-              </List>
-            </BlockStack>
-          </Card>
-        </Layout.Section>
+        <p
+          style={{
+            fontSize: "16px",
+            lineHeight: 1.7,
+            color: "#4b5563",
+            margin: 0,
+          }}
+        >
+          Activate <strong>{plan.name}</strong> to enable Wishlist247 for your
+          storefront. This includes the product page wishlist button, floating
+          wishlist icon, and dedicated wishlist page with add-to-cart and remove
+          actions.
+        </p>
+      </div>
 
-        <Layout.Section variant="oneThird">
-          <Card padding="500">
-            <BlockStack gap="400">
-              <InlineStack align="space-between">
-                <Text as="h3" variant="headingLg">
-                  ${plan.price}/month
-                </Text>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1.5fr) minmax(320px, 0.9fr)",
+          gap: "22px",
+        }}
+      >
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e5e7eb",
+            borderRadius: "18px",
+            padding: "26px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+          }}
+        >
+          <h2
+            style={{
+              fontSize: "24px",
+              margin: "0 0 14px 0",
+              color: "#111827",
+            }}
+          >
+            {plan.name}
+          </h2>
 
-                {isActive ? (
-                  <Badge tone="success">Active</Badge>
-                ) : (
-                  <Badge tone="info">{plan.trialDays}-day trial</Badge>
-                )}
-              </InlineStack>
+          <p
+            style={{
+              margin: "0 0 16px 0",
+              color: "#4b5563",
+              lineHeight: 1.7,
+              fontSize: "15px",
+            }}
+          >
+            Wishlist247 is built for merchants who want a clean, fast, and
+            reliable saved-products experience without clutter.
+          </p>
 
-              <Text as="p" variant="bodyMd" tone="subdued">
-                7-day free trial, then ${plan.price}/month. Cancel anytime.
-              </Text>
+          <ul
+            style={{
+              margin: 0,
+              paddingLeft: "20px",
+              color: "#4b5563",
+              lineHeight: 1.9,
+              fontSize: "15px",
+            }}
+          >
+            <li>Wishlist button on product pages</li>
+            <li>Floating wishlist icon with live count</li>
+            <li>Dedicated wishlist page</li>
+            <li>Remove items from wishlist</li>
+            <li>Add saved products directly to cart</li>
+            <li>Billing-protected access for active merchants</li>
+          </ul>
+        </div>
 
-              {isActive ? (
-                <Button fullWidth disabled>
-                  Subscription Active
-                </Button>
-              ) : (
-                <Form method="post" reloadDocument>
-                  <Button submit variant="primary" fullWidth>
-                    Start {plan.trialDays}-Day Free Trial
-                  </Button>
-                </Form>
-              )}
-            </BlockStack>
-          </Card>
-        </Layout.Section>
-      </Layout>
-    </Page>
+        <div
+          style={{
+            background: "#ffffff",
+            border: "1px solid #e5e7eb",
+            borderRadius: "18px",
+            padding: "26px",
+            boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+            alignSelf: "start",
+          }}
+        >
+          <div
+            style={{
+              fontSize: "34px",
+              fontWeight: 800,
+              color: "#111827",
+              marginBottom: "10px",
+            }}
+          >
+            ${plan.price}
+            <span
+              style={{
+                fontSize: "16px",
+                fontWeight: 500,
+                color: "#6b7280",
+                marginLeft: "6px",
+              }}
+            >
+              /month
+            </span>
+          </div>
+
+          <p
+            style={{
+              margin: "0 0 16px 0",
+              color: "#6b7280",
+              lineHeight: 1.7,
+              fontSize: "14px",
+            }}
+          >
+            {plan.trialDays}-day free trial, then ${plan.price}/month. Cancel anytime.
+          </p>
+
+          {isActive ? (
+            <button
+              disabled
+              style={{
+                width: "100%",
+                background: "#e5e7eb",
+                color: "#111827",
+                border: "none",
+                borderRadius: "14px",
+                padding: "14px 18px",
+                fontSize: "15px",
+                fontWeight: 700,
+                cursor: "not-allowed",
+              }}
+            >
+              Subscription Active
+            </button>
+          ) : (
+            <Form method="post" reloadDocument>
+              <button
+                type="submit"
+                style={{
+                  width: "100%",
+                  background: "#111827",
+                  color: "#ffffff",
+                  border: "none",
+                  borderRadius: "14px",
+                  padding: "14px 18px",
+                  fontSize: "15px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Start {plan.trialDays}-Day Free Trial
+              </button>
+            </Form>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @media (max-width: 900px) {
+          .wishlist247-pricing-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
+    </div>
   );
 }
