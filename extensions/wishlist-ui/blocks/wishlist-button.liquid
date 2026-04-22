@@ -127,22 +127,19 @@ Functionality unchanged
     position: relative;
   }
 
-  .wl-floating-heart svg  {
-    font-size: 24px;
-    line-height: 1;
-    color: #ff4f87;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transform: translateY(1px);
-    text-shadow: 0 4px 12px rgba(255, 79, 135, 0.25);
-    transition: transform 0.22s ease, color 0.22s ease;
-  }
+ .wl-floating-heart svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+  fill: #ff4f87;
+  filter: drop-shadow(0 4px 12px rgba(255, 79, 135, 0.25));
+  transition: transform 0.22s ease, fill 0.22s ease;
+}
 
-  .wl-floating-link:hover .wl-floating-heart svg  {
-    transform: translateY(1px) scale(1.08);
-    color: #ff5f95;
-  }
+.wl-floating-link:hover .wl-floating-heart svg {
+  transform: scale(1.08);
+  fill: #ff5f95;
+}
 
   .wl-floating-count {
     position: absolute;
@@ -212,9 +209,12 @@ Functionality unchanged
       border-radius: 18px;
     }
 
-    .wl-floating-heart svg  {
-      font-size: 22px;
-    }
+    .wl-floating-heart   {
+ width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;    }
 
     .wl-floating-count {
       min-width: 22px;
@@ -263,9 +263,10 @@ Functionality unchanged
 >
   <span class="wl-floating-icon-wrap">
 <span class="wl-floating-heart" aria-hidden="true">
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="#ff4f87" viewBox="0 0 24 24">
-    <path d="M12 21s-6.716-4.534-9.428-8.036C.97 10.79 1.4 7.4 4.118 5.74 6.39 4.36 9.06 5.1 10.5 6.88L12 8.72l1.5-1.84c1.44-1.78 4.11-2.52 6.382-1.14 2.718 1.66 3.148 5.05 1.546 7.224C18.716 16.466 12 21 12 21z"/>
+  <svg viewBox="0 0 24 24" role="img" focusable="false" aria-hidden="true">
+    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path>
   </svg>
+</span>
 </span>
     <span
       class="wl-floating-count"
