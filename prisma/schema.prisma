@@ -45,8 +45,8 @@ model wishlistSetting {
 }
 
 model Shop {
-  id         String   @id
-  trialUsed  Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id        String   @id
+  trialUsed Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
