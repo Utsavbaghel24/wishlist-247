@@ -1,3 +1,5 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
 client_id = "2b8e6fdb5104ecbbfb5820eb32e312fa"
 name = "Wishlist-247"
 application_url = "https://wishlist-247.onrender.com"
@@ -9,16 +11,17 @@ automatically_update_urls_on_dev = true
 [webhooks]
 api_version = "2026-04"
 
-[[webhooks.subscriptions]]
-topics = ["app/uninstalled"]
-uri = "/webhooks/app/uninstalled"
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
 
-[[webhooks.subscriptions]]
-topics = ["app/scopes_update"]
-uri = "/webhooks/app/scopes_update"
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
 
 [access_scopes]
-scopes = "read_products,write_products,write_app_proxy"
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_products,write_app_proxy,write_products"
 
 [auth]
 redirect_urls = [
@@ -29,5 +32,5 @@ redirect_urls = [
 
 [app_proxy]
 url = "https://wishlist-247.onrender.com/proxy"
-prefix = "apps"
 subpath = "wishlist"
+prefix = "apps"
