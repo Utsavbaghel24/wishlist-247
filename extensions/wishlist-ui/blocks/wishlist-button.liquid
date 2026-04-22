@@ -127,25 +127,25 @@ Functionality unchanged
     position: relative;
   }
 .wl-floating-heart {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
+  width: 28px !important;
+  height: 28px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: yellow !important;
+  border: 2px solid red !important;
 }
 
- .wl-floating-heart {
-  width: 24px;
-  height: 24px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 24px;
-  line-height: 1;
-  color: #ff4f87;
-  text-shadow: 0 4px 12px rgba(255, 79, 135, 0.25);
-  transition: transform 0.22s ease, color 0.22s ease;
+.wl-floating-heart svg {
+  width: 28px !important;
+  height: 28px !important;
+  display: block !important;
+  fill: #ff4f87 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+.wl-floating-link {
+  display: flex !important;
 }
 
 .wl-floating-link:hover .wl-floating-heart {
@@ -275,8 +275,11 @@ Functionality unchanged
 >
   <span class="wl-floating-icon-wrap">
 
-<span class="wl-floating-heart" aria-hidden="true">♥</span>
-
+<span class="wl-floating-heart" aria-hidden="true">
+  <svg viewBox="0 0 24 24">
+    <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"></path>
+  </svg>
+</span>
     <span
       class="wl-floating-count"
       id="wl-floating-count"
