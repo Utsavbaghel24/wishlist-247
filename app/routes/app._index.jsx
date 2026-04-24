@@ -35,10 +35,10 @@ export default function AppIndex() {
             <div>
               <h1 style={styles.heroTitle}>Welcome to Wishlist247</h1>
               <p style={styles.heroText}>
-                Wishlist247 helps your customers save products, revisit them later,
-                and add them to cart from a clean, dedicated wishlist experience.
-                This page gives you the exact setup steps needed to get the app
-                live on your storefront quickly and correctly.
+                Wishlist247 helps your customers save products, revisit them
+                later, and add them to cart from a clean, dedicated wishlist
+                experience. This page gives you the exact setup steps needed to
+                get the app live on your storefront quickly and correctly.
               </p>
 
               <div style={styles.tagWrap}>
@@ -52,8 +52,12 @@ export default function AppIndex() {
               <div style={styles.summaryLabel}>Quick Setup Summary</div>
 
               <div style={styles.summaryList}>
-                <div>1. Add the Wishlist Button app block on product pages.</div>
-                <div>2. Create the wishlist page and assign the correct template.</div>
+                <div>
+                  1. Add the Wishlist Button app block on product pages.
+                </div>
+                <div>
+                  2. Create the wishlist page and assign the correct template.
+                </div>
                 <div>3. Save and preview your storefront.</div>
               </div>
 
@@ -68,7 +72,13 @@ export default function AppIndex() {
         <div className="grid-three" style={styles.gridThree}>
           <section style={{ ...styles.card, gridColumn: "span 2" }}>
             <div style={styles.cardHeader}>
-              <div style={{ ...styles.iconBox, background: "#f3e8ff", color: "#7c3aed" }}>
+              <div
+                style={{
+                  ...styles.iconBox,
+                  background: "#f3e8ff",
+                  color: "#7c3aed",
+                }}
+              >
                 ♡
               </div>
               <div>
@@ -90,12 +100,20 @@ export default function AppIndex() {
 
           <section style={styles.card}>
             <div style={styles.cardHeader}>
-              <div style={{ ...styles.iconBox, background: "#dcfce7", color: "#15803d" }}>
+              <div
+                style={{
+                  ...styles.iconBox,
+                  background: "#dcfce7",
+                  color: "#15803d",
+                }}
+              >
                 ✓
               </div>
               <div>
                 <h2 style={styles.cardTitle}>Store requirements</h2>
-                <p style={styles.cardSubtext}>Setup details to complete before launch</p>
+                <p style={styles.cardSubtext}>
+                  Setup details to complete before launch
+                </p>
               </div>
             </div>
 
@@ -124,12 +142,20 @@ export default function AppIndex() {
         <div className="grid-two" style={styles.gridTwo}>
           <section style={styles.card}>
             <div style={styles.cardHeader}>
-              <div style={{ ...styles.iconBox, background: "#dbeafe", color: "#2563eb" }}>
+              <div
+                style={{
+                  ...styles.iconBox,
+                  background: "#dbeafe",
+                  color: "#2563eb",
+                }}
+              >
                 ⏱
               </div>
               <div>
                 <h2 style={styles.cardTitle}>Setup instructions</h2>
-                <p style={styles.cardSubtext}>Follow these steps after installation</p>
+                <p style={styles.cardSubtext}>
+                  Follow these steps after installation
+                </p>
               </div>
             </div>
 
@@ -143,17 +169,23 @@ export default function AppIndex() {
             </div>
 
             <div style={styles.warningBox}>
-              <strong>Important:</strong> Add the Wishlist Button block on product
-              page templates where you want customers to save products. Then create
-              the wishlist page so customers can view, remove, and add saved items
-              to cart.
+              <strong>Important:</strong> Add the Wishlist Button block on
+              product page templates where you want customers to save products.
+              Then create the wishlist page so customers can view, remove, and
+              add saved items to cart.
             </div>
           </section>
 
           <div style={styles.sideColumn}>
             <section style={styles.card}>
               <div style={styles.cardHeader}>
-                <div style={{ ...styles.iconBox, background: "#fce7f3", color: "#db2777" }}>
+                <div
+                  style={{
+                    ...styles.iconBox,
+                    background: "#fce7f3",
+                    color: "#db2777",
+                  }}
+                >
                   ✦
                 </div>
                 <div>
@@ -190,16 +222,14 @@ export default function AppIndex() {
                 If you face any issue during setup or need help with theme
                 placement, reach out and we’ll help you quickly.
               </div>
-
               <div style={styles.supportEmailBox}>
                 <div style={styles.supportMiniLabel}>Support email</div>
-                <a href="mailto:wishlistpro247@gmail.com" style={styles.supportLink}>
-                  wishlistpro247@gmail.com
-                </a>
+                <div style={styles.supportLink}>wishlistpro247@gmail.com</div>
               </div>
 
               <div style={styles.supportNotice}>
-                Instant replies available for setup support and onboarding guidance.
+                Instant replies available for setup support and onboarding
+                guidance.
               </div>
             </section>
           </div>
