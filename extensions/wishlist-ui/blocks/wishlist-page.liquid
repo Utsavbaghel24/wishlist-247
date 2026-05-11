@@ -249,126 +249,16 @@ Use defer to avoid parser-blocking.
       }
       return "";
     }
+
+
 /* ======================================================
-   QUICK CART REFRESH — STILETTO SAFE VERSION
+   QUICK CART REFRESH — APP ONLY FINAL VERSION
    - Adds product via Shopify AJAX cart
-   - Refreshes Stiletto quick cart + fallback cart drawer
-   - Forces product rows/images to appear without page reload
+   - Opens quick cart
+   - Forces full page-free refresh if theme drawer does not rebuild
 ====================================================== */
 
-function getCartSectionIds() {
-  return [
-    "quick-cart",
-    "cart-drawer",
-    "cart-icon-bubble",
-    "cart-notification",
-    "header"
-  ];
-}
-
-function parseHTML(html) {
-  try {
-    return new DOMParser().parseFromString(String(html || ""), "text/html");
-  } catch (e) {
-    return null;
-  }
-}
-
-function replaceSectionById(sectionId, html) {
-  if (!html) return false;
-
-  var currentSection = document.getElementById("shopify-section-" + sectionId);
-  if (currentSection) {
-    currentSection.innerHTML = html;
-    return true;
-  }
-
-  return false;
-}
-
-function replaceQuickCart(sectionHtml) {
-  if (!sectionHtml) return false;
-
-  var current =
-    document.querySelector("quick-cart") ||
-    document.querySelector("quick-cart-drawer") ||
-    document.querySelector("#QuickCart") ||
-    document.querySelector("#quick-cart") ||
-    document.querySelector(".quick-cart") ||
-    document.querySelector("[data-quick-cart]") ||
-    document.querySelector("cart-drawer") ||
-    document.querySelector("#CartDrawer") ||
-    document.querySelector(".cart-drawer") ||
-    document.querySelector("[data-cart-drawer]");
-
-  if (!current) return false;
-
-  var doc = parseHTML(sectionHtml);
-
-  if (doc) {
-    var fresh =
-      doc.querySelector("quick-cart") ||
-      doc.querySelector("quick-cart-drawer") ||
-      doc.querySelector("#QuickCart") ||
-      doc.querySelector("#quick-cart") ||
-      doc.querySelector(".quick-cart") ||
-      doc.querySelector("[data-quick-cart]") ||
-      doc.querySelector("cart-drawer") ||
-      doc.querySelector("#CartDrawer") ||
-      doc.querySelector(".cart-drawer") ||
-      doc.querySelector("[data-cart-drawer]");
-
-    if (fresh) {
-      current.innerHTML = fresh.innerHTML;
-      return true;
-    }
-  }
-
-  current.innerHTML = sectionHtml;
-  return true;
-}
-
-function applySections(sectionsObj) {
-  if (!sectionsObj) return;
-
-  if (sectionsObj["quick-cart"]) {
-    replaceSectionById("quick-cart", sectionsObj["quick-cart"]);
-    replaceQuickCart(sectionsObj["quick-cart"]);
-  }
-
-  if (sectionsObj["cart-drawer"]) {
-    replaceSectionById("cart-drawer", sectionsObj["cart-drawer"]);
-    replaceQuickCart(sectionsObj["cart-drawer"]);
-  }
-
-  if (sectionsObj["cart-icon-bubble"]) {
-    replaceSectionById("cart-icon-bubble", sectionsObj["cart-icon-bubble"]);
-  }
-
-  if (sectionsObj["cart-notification"]) {
-    replaceSectionById("cart-notification", sectionsObj["cart-notification"]);
-  }
-
-  if (sectionsObj["header"]) {
-    replaceSectionById("header", sectionsObj["header"]);
-  }
-}
-
 function openCartDrawer() {
-  var quickCart =
-    document.querySelector("quick-cart") ||
-    document.querySelector("quick-cart-drawer") ||
-    document.querySelector("#QuickCart") ||
-    document.querySelector("#quick-cart") ||
-    document.querySelector(".quick-cart") ||
-    document.querySelector("[data-quick-cart]") ||
-    document.querySelector("cart-drawer");
-
-  if (quickCart && typeof quickCart.open === "function") {
-    quickCart.open();
-    return;
-  }
-
   var btn =
     document.querySelector('[data-quick-cart-trigger]') ||
     document.querySelector('[data-quick-cart-open]') ||
@@ -395,11 +285,29 @@ function triggerCartEvents(cartData) {
   } catch (e) {}
 }
 
-async function fetchFreshSections() {
-  var sections = getCartSectionIds();
+async function getCartData() {
+  var res = await fetch("/cart.js", {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json" }
+  });
 
-  var response = await fetch(
-    "/cart?sections=" + encodeURIComponent(sections.join(",")),
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+/* Force refresh using Shopify bundled-section rendering */
+async function refreshQuickCartSections() {
+  var sectionIds = [
+    "quick-cart",
+    "cart-drawer",
+    "cart-icon-bubble",
+    "cart-notification",
+    "header"
+  ];
+
+  var res = await fetch(
+    "/cart?sections=" + encodeURIComponent(sectionIds.join(",")),
     {
       credentials: "same-origin",
       cache: "no-store",
@@ -407,18 +315,28 @@ async function fetchFreshSections() {
     }
   );
 
-  if (!response.ok) return null;
-  return await response.json();
+  if (!res.ok) return null;
+
+  var sections = await res.json();
+
+  Object.keys(sections || {}).forEach(function(sectionId) {
+    var html = sections[sectionId];
+    if (!html) return;
+
+    var current = document.getElementById("shopify-section-" + sectionId);
+    if (current) {
+      current.innerHTML = html;
+    }
+  });
+
+  return sections;
 }
 
+/* Last fallback: if theme drawer still does not repaint, safely reload only cart drawer content by opening cart link */
 async function addToCartAndRefresh(variantId) {
-  var sections = getCartSectionIds();
-
   var fd = new FormData();
   fd.append("id", String(variantId));
   fd.append("quantity", "1");
-  fd.append("sections", sections.join(","));
-  fd.append("sections_url", "/cart");
 
   var response = await fetch("/cart/add.js", {
     method: "POST",
@@ -431,42 +349,30 @@ async function addToCartAndRefresh(variantId) {
   try { data = await response.json(); } catch (e) {}
 
   if (!response.ok) {
-    throw new Error("Add to cart failed");
+    throw new Error((data && data.description) || "Add to cart failed");
   }
 
-  var freshSections = await fetchFreshSections();
-
-  if (freshSections) {
-    applySections(freshSections);
-  } else if (data && data.sections) {
-    applySections(data.sections);
-  }
-
-  var cartData = null;
-  try {
-    var cartResponse = await fetch("/cart.js", {
-      credentials: "same-origin",
-      cache: "no-store",
-      headers: { Accept: "application/json" }
-    });
-
-    if (cartResponse.ok) {
-      cartData = await cartResponse.json();
-    }
-  } catch (e) {}
+  var cartData = await getCartData();
 
   triggerCartEvents(cartData);
 
+  await refreshQuickCartSections();
+
   setTimeout(async function () {
-    try {
-      var refreshed = await fetchFreshSections();
-      if (refreshed) applySections(refreshed);
-      triggerCartEvents(cartData);
-    } catch (e) {}
-  }, 400);
+    var updatedCart = await getCartData();
+    triggerCartEvents(updatedCart);
+    await refreshQuickCartSections();
+    openCartDrawer();
+  }, 300);
+
+  setTimeout(async function () {
+    await refreshQuickCartSections();
+    openCartDrawer();
+  }, 700);
 
   openCartDrawer();
 }
+
     /* -----------------------
        Product map from /products.json
     ------------------------*/
