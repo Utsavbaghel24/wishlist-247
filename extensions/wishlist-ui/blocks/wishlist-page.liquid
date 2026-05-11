@@ -250,13 +250,182 @@ Use defer to avoid parser-blocking.
       return "";
     }
 
+/* ======================================================
+   WISHLIST APP QUICK CART — WITH QTY + REMOVE
+====================================================== */
+
+function wlMoney(cents) {
+  return "$" + (Number(cents || 0) / 100).toFixed(2);
+}
+
+async function wlGetCart() {
+  var res = await fetch("/cart.js", {
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { Accept: "application/json" }
+  });
+  if (!res.ok) return null;
+  return await res.json();
+}
+
+async function wlChangeCart(line, quantity) {
+  var res = await fetch("/cart/change.js", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json"
+    },
+    body: JSON.stringify({
+      line: line,
+      quantity: quantity
+    })
+  });
+
+  if (!res.ok) throw new Error("Cart update failed");
+  return await res.json();
+}
+
+function wlEnsureCartDrawer() {
+  var existing = document.getElementById("wl-app-quick-cart");
+  if (existing) return existing;
+
+  var wrap = document.createElement("div");
+  wrap.id = "wl-app-quick-cart";
+  wrap.innerHTML = `
+    <div class="wl-qc-overlay" data-wl-qc-close></div>
+    <div class="wl-qc-drawer">
+      <div class="wl-qc-head">
+        <strong>Your Cart</strong>
+        <button type="button" data-wl-qc-close>×</button>
+      </div>
+      <div class="wl-qc-items" data-wl-qc-items></div>
+      <div class="wl-qc-foot">
+        <div class="wl-qc-subtotal">
+          <span>Subtotal</span>
+          <strong data-wl-qc-total>$0.00</strong>
+        </div>
+        <a href="/cart" class="wl-qc-cart">View Cart</a>
+        <a href="/checkout" class="wl-qc-checkout">Checkout</a>
+      </div>
+    </div>
+  `;
+
+  var style = document.createElement("style");
+  style.textContent = `
+    #wl-app-quick-cart{position:fixed;inset:0;z-index:999999;display:none;font-family:inherit}
+    #wl-app-quick-cart.is-open{display:block}
+    .wl-qc-overlay{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+    .wl-qc-drawer{position:absolute;right:0;top:0;width:min(430px,100%);height:100%;background:#fff;display:flex;flex-direction:column;box-shadow:-8px 0 24px rgba(0,0,0,.14)}
+    .wl-qc-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid #eee}
+    .wl-qc-head button{background:none;border:0;font-size:28px;cursor:pointer}
+    .wl-qc-items{flex:1;overflow:auto;padding:18px}
+    .wl-qc-item{display:grid;grid-template-columns:80px 1fr;gap:14px;padding:14px 0;border-bottom:1px solid #eee}
+    .wl-qc-item img{width:80px;height:80px;object-fit:cover;display:block;background:#f6f6f6}
+    .wl-qc-title{color:#111;text-decoration:none;font-size:14px;line-height:1.4;font-weight:600}
+    .wl-qc-variant{font-size:12px;color:#666;margin-top:4px}
+    .wl-qc-price{font-weight:700;margin-top:7px}
+    .wl-qc-qty-wrap{display:flex;align-items:center;gap:8px;margin-top:10px}
+    .wl-qc-qty-wrap button{width:30px;height:30px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    .wl-qc-remove{margin-top:8px;background:none;border:0;padding:0;text-decoration:underline;cursor:pointer;font-size:12px;color:#555}
+    .wl-qc-foot{padding:18px 20px;border-top:1px solid #eee;background:#fff;display:grid;gap:12px}
+    .wl-qc-subtotal{display:flex;justify-content:space-between;font-size:16px;font-weight:700}
+    .wl-qc-cart,.wl-qc-checkout{display:flex;align-items:center;justify-content:center;min-height:46px;text-decoration:none;font-weight:700}
+    .wl-qc-cart{border:1px solid #111;color:#111;background:#fff}
+    .wl-qc-checkout{background:#111;color:#fff}
+  `;
+
+  document.head.appendChild(style);
+  document.body.appendChild(wrap);
+
+  wrap.addEventListener("click", async function(e) {
+    if (e.target.closest("[data-wl-qc-close]")) {
+      wrap.classList.remove("is-open");
+      return;
+    }
+
+    var qtyBtn = e.target.closest("[data-wl-line][data-wl-qty]");
+    if (qtyBtn) {
+      var line = Number(qtyBtn.getAttribute("data-wl-line"));
+      var qty = Number(qtyBtn.getAttribute("data-wl-qty"));
+      var cart = await wlChangeCart(line, qty);
+      wlRenderCart(cart);
+      return;
+    }
+
+    var removeBtn = e.target.closest("[data-wl-remove-line]");
+    if (removeBtn) {
+      var removeLine = Number(removeBtn.getAttribute("data-wl-remove-line"));
+      var updatedCart = await wlChangeCart(removeLine, 0);
+      wlRenderCart(updatedCart);
+    }
+  });
+
+  return wrap;
+}
+
+function wlRenderCart(cart) {
+  var drawer = wlEnsureCartDrawer();
+  var itemsEl = drawer.querySelector("[data-wl-qc-items]");
+  var totalEl = drawer.querySelector("[data-wl-qc-total]");
+
+  if (!cart || !cart.items || !cart.items.length) {
+    itemsEl.innerHTML = "<p>Your cart is empty.</p>";
+    totalEl.textContent = "$0.00";
+  } else {
+    itemsEl.innerHTML = cart.items.map(function(item, index) {
+      var line = index + 1;
+      var img = item.image || "";
+      var title = item.product_title || item.title || "";
+      var variant = item.variant_title && item.variant_title !== "Default Title" ? item.variant_title : "";
+      var url = item.url || "#";
+      var minusQty = Math.max(0, item.quantity - 1);
+      var plusQty = item.quantity + 1;
+
+      return `
+        <div class="wl-qc-item">
+          <a href="${url}">
+            ${img ? `<img src="${img}" alt="${title.replace(/"/g, "&quot;")}">` : ""}
+          </a>
+          <div>
+            <a class="wl-qc-title" href="${url}">${title}</a>
+            ${variant ? `<div class="wl-qc-variant">${variant}</div>` : ""}
+            <div class="wl-qc-price">${wlMoney(item.final_line_price)}</div>
+
+            <div class="wl-qc-qty-wrap">
+              <button type="button" data-wl-line="${line}" data-wl-qty="${minusQty}">−</button>
+              <span>${item.quantity}</span>
+              <button type="button" data-wl-line="${line}" data-wl-qty="${plusQty}">+</button>
+            </div>
+
+            <button type="button" class="wl-qc-remove" data-wl-remove-line="${line}">Remove</button>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    totalEl.textContent = wlMoney(cart.total_price);
+  }
+
+  drawer.classList.add("is-open");
+}
+
+function wlTriggerCartEvents(cart) {
+  try {
+    document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true, detail: { cart: cart || null } }));
+    document.dispatchEvent(new CustomEvent("cart:update", { bubbles: true, detail: { cart: cart || null } }));
+    document.dispatchEvent(new CustomEvent("cart:updated", { bubbles: true, detail: { cart: cart || null } }));
+    window.dispatchEvent(new CustomEvent("cart:refresh", { detail: { cart: cart || null } }));
+  } catch(e) {}
+}
+
 async function addToCartAndRefresh(variantId) {
   var response = await fetch("/cart/add.js", {
     method: "POST",
     credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
-      "Accept": "application/json"
+      Accept: "application/json"
     },
     body: JSON.stringify({
       id: Number(variantId),
@@ -271,23 +440,10 @@ async function addToCartAndRefresh(variantId) {
     throw new Error((data && data.description) || "Add to cart failed");
   }
 
-  document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true }));
-  document.dispatchEvent(new CustomEvent("cart:update", { bubbles: true }));
-  document.dispatchEvent(new CustomEvent("cart:updated", { bubbles: true }));
-  window.dispatchEvent(new CustomEvent("cart:refresh"));
-
-  var cartBtn =
-    document.querySelector('[data-quick-cart-trigger]') ||
-    document.querySelector('[data-cart-drawer-toggle]') ||
-    document.querySelector('[aria-controls*="QuickCart"]') ||
-    document.querySelector('[aria-controls*="CartDrawer"]') ||
-    document.querySelector('[href="/cart"]');
-
-  if (cartBtn) {
-    cartBtn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-  }
+  var cart = await wlGetCart();
+  wlTriggerCartEvents(cart);
+  wlRenderCart(cart);
 }
-
     /* -----------------------
        Product map from /products.json
     ------------------------*/
