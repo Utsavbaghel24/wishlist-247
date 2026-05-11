@@ -290,40 +290,67 @@ function wlEnsureCartDrawer() {
     </div>
   `;
 
-var style = document.createElement("style");
 style.textContent = `
   #wl-app-quick-cart{
     position:fixed;
     inset:0;
     z-index:999999;
     display:none;
+    font-family:inherit;
   }
 
-  #wl-app-quick-cart.is-open{
-    display:block;
-  }
+  #wl-app-quick-cart.is-open{display:block;}
 
   .wl-qc-overlay{
     position:absolute;
     inset:0;
-    background:rgba(0,0,0,.35);
+    background:rgba(0,0,0,.45);
   }
 
   .wl-qc-drawer{
     position:absolute;
-    right:0;
     top:0;
+    right:0;
     width:min(430px,100%);
     height:100%;
     background:#fff;
+    display:flex;
+    flex-direction:column;
+    box-shadow:-8px 0 24px rgba(0,0,0,.15);
+  }
+
+  .wl-qc-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:18px 20px;
+    border-bottom:1px solid #eee;
+  }
+
+  .wl-qc-head strong{
+    font-size:20px;
+    font-weight:700;
+  }
+
+  .wl-qc-head button{
+    background:none;
+    border:1px solid #ccc;
+    width:32px;
+    height:32px;
+    cursor:pointer;
+  }
+
+  .wl-qc-items{
+    flex:1;
     overflow:auto;
+    padding:18px;
   }
 
   .wl-qc-item{
     display:grid;
     grid-template-columns:80px 1fr;
-    gap:12px;
-    padding:14px;
+    gap:14px;
+    padding:14px 0;
     border-bottom:1px solid #eee;
   }
 
@@ -332,6 +359,63 @@ style.textContent = `
     height:80px;
     object-fit:cover;
     display:block;
+  }
+
+  .wl-qc-title{
+    color:#111;
+    text-decoration:none;
+    font-size:15px;
+    line-height:1.4;
+    font-weight:600;
+  }
+
+  .wl-qc-qty,
+  .wl-qc-variant{
+    font-size:13px;
+    color:#666;
+    margin-top:5px;
+  }
+
+  .wl-qc-price{
+    font-weight:700;
+    margin-top:7px;
+  }
+
+  .wl-qc-foot{
+    padding:18px 20px;
+    border-top:1px solid #eee;
+    background:#fff;
+    display:grid;
+    gap:12px;
+  }
+
+  .wl-qc-subtotal{
+    display:flex;
+    justify-content:space-between;
+    font-size:16px;
+    font-weight:700;
+  }
+
+  .wl-qc-cart,
+  .wl-qc-checkout{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    min-height:46px;
+    text-decoration:none;
+    font-weight:700;
+    border-radius:4px;
+  }
+
+  .wl-qc-cart{
+    border:1px solid #111;
+    color:#111;
+    background:#fff;
+  }
+
+  .wl-qc-checkout{
+    background:#111;
+    color:#fff;
   }
 `;
 document.head.appendChild(style);
