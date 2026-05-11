@@ -250,14 +250,15 @@ Use defer to avoid parser-blocking.
       return "";
     }
 /* ======================================================
-   CART DRAWER REFRESH — SAFE LIVE VERSION
+   QUICK CART REFRESH — STILETTO SAFE VERSION
    - Adds product via Shopify AJAX cart
-   - Refreshes drawer sections without page reload
-   - Supports most Shopify themes including Stiletto
+   - Refreshes Stiletto quick cart + fallback cart drawer
+   - Forces product rows/images to appear without page reload
 ====================================================== */
 
 function getCartSectionIds() {
   return [
+    "quick-cart",
     "cart-drawer",
     "cart-icon-bubble",
     "cart-notification",
@@ -277,7 +278,6 @@ function replaceSectionById(sectionId, html) {
   if (!html) return false;
 
   var currentSection = document.getElementById("shopify-section-" + sectionId);
-
   if (currentSection) {
     currentSection.innerHTML = html;
     return true;
@@ -286,51 +286,59 @@ function replaceSectionById(sectionId, html) {
   return false;
 }
 
-function replaceCartDrawer(sectionHtml) {
+function replaceQuickCart(sectionHtml) {
   if (!sectionHtml) return false;
 
-  var currentDrawer =
+  var current =
+    document.querySelector("quick-cart") ||
+    document.querySelector("quick-cart-drawer") ||
+    document.querySelector("#QuickCart") ||
+    document.querySelector("#quick-cart") ||
+    document.querySelector(".quick-cart") ||
+    document.querySelector("[data-quick-cart]") ||
     document.querySelector("cart-drawer") ||
     document.querySelector("#CartDrawer") ||
     document.querySelector(".cart-drawer") ||
     document.querySelector("[data-cart-drawer]");
 
-  if (!currentDrawer) return false;
+  if (!current) return false;
 
   var doc = parseHTML(sectionHtml);
 
   if (doc) {
-    var newDrawer =
+    var fresh =
+      doc.querySelector("quick-cart") ||
+      doc.querySelector("quick-cart-drawer") ||
+      doc.querySelector("#QuickCart") ||
+      doc.querySelector("#quick-cart") ||
+      doc.querySelector(".quick-cart") ||
+      doc.querySelector("[data-quick-cart]") ||
       doc.querySelector("cart-drawer") ||
       doc.querySelector("#CartDrawer") ||
       doc.querySelector(".cart-drawer") ||
       doc.querySelector("[data-cart-drawer]");
 
-    if (newDrawer) {
-      currentDrawer.innerHTML = newDrawer.innerHTML;
+    if (fresh) {
+      current.innerHTML = fresh.innerHTML;
       return true;
     }
   }
 
-  currentDrawer.innerHTML = sectionHtml;
+  current.innerHTML = sectionHtml;
   return true;
 }
 
 function applySections(sectionsObj) {
   if (!sectionsObj) return;
 
-  var cd = document.querySelector("cart-drawer");
-
-  if (cd && typeof cd.renderContents === "function") {
-    try {
-      cd.renderContents({ sections: sectionsObj });
-    } catch (e) {
-      console.warn("cart drawer render failed", e);
-    }
+  if (sectionsObj["quick-cart"]) {
+    replaceSectionById("quick-cart", sectionsObj["quick-cart"]);
+    replaceQuickCart(sectionsObj["quick-cart"]);
   }
 
   if (sectionsObj["cart-drawer"]) {
-    replaceCartDrawer(sectionsObj["cart-drawer"]);
+    replaceSectionById("cart-drawer", sectionsObj["cart-drawer"]);
+    replaceQuickCart(sectionsObj["cart-drawer"]);
   }
 
   if (sectionsObj["cart-icon-bubble"]) {
@@ -347,58 +355,43 @@ function applySections(sectionsObj) {
 }
 
 function openCartDrawer() {
-  var cd = document.querySelector("cart-drawer");
+  var quickCart =
+    document.querySelector("quick-cart") ||
+    document.querySelector("quick-cart-drawer") ||
+    document.querySelector("#QuickCart") ||
+    document.querySelector("#quick-cart") ||
+    document.querySelector(".quick-cart") ||
+    document.querySelector("[data-quick-cart]") ||
+    document.querySelector("cart-drawer");
 
-  if (cd && typeof cd.open === "function") {
-    cd.open();
+  if (quickCart && typeof quickCart.open === "function") {
+    quickCart.open();
     return;
   }
 
   var btn =
+    document.querySelector('[data-quick-cart-trigger]') ||
+    document.querySelector('[data-quick-cart-open]') ||
     document.querySelector('[data-cart-drawer-toggle]') ||
     document.querySelector('[data-cart-drawer-open]') ||
+    document.querySelector('[aria-controls*="QuickCart"]') ||
     document.querySelector('[aria-controls*="CartDrawer"]') ||
     document.querySelector('[href="/cart"]') ||
     document.querySelector('[href*="/cart"]');
 
   if (btn) {
-    btn.dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true
-      })
-    );
+    btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
   }
 }
 
 function triggerCartEvents(cartData) {
   try {
-    document.dispatchEvent(
-      new CustomEvent("cart:refresh", {
-        bubbles: true,
-        detail: { cart: cartData || null }
-      })
-    );
-
-    document.dispatchEvent(
-      new CustomEvent("cart:update", {
-        bubbles: true,
-        detail: { cart: cartData || null }
-      })
-    );
-
-    document.documentElement.dispatchEvent(
-      new CustomEvent("cart:refresh", {
-        bubbles: true,
-        detail: { cart: cartData || null }
-      })
-    );
-
-    window.dispatchEvent(
-      new CustomEvent("cart:refresh", {
-        detail: { cart: cartData || null }
-      })
-    );
+    document.dispatchEvent(new CustomEvent("cart:refresh", { bubbles: true, detail: { cart: cartData || null } }));
+    document.dispatchEvent(new CustomEvent("cart:update", { bubbles: true, detail: { cart: cartData || null } }));
+    document.dispatchEvent(new CustomEvent("cart:updated", { bubbles: true, detail: { cart: cartData || null } }));
+    document.dispatchEvent(new CustomEvent("quick-cart:refresh", { bubbles: true, detail: { cart: cartData || null } }));
+    document.dispatchEvent(new CustomEvent("quick-cart:update", { bubbles: true, detail: { cart: cartData || null } }));
+    window.dispatchEvent(new CustomEvent("cart:refresh", { detail: { cart: cartData || null } }));
   } catch (e) {}
 }
 
@@ -410,14 +403,11 @@ async function fetchFreshSections() {
     {
       credentials: "same-origin",
       cache: "no-store",
-      headers: {
-        Accept: "application/json"
-      }
+      headers: { Accept: "application/json" }
     }
   );
 
   if (!response.ok) return null;
-
   return await response.json();
 }
 
@@ -434,57 +424,49 @@ async function addToCartAndRefresh(variantId) {
     method: "POST",
     body: fd,
     credentials: "same-origin",
-    headers: {
-      Accept: "application/json"
-    }
+    headers: { Accept: "application/json" }
   });
 
   var data = null;
-
-  try {
-    data = await response.json();
-  } catch (e) {}
+  try { data = await response.json(); } catch (e) {}
 
   if (!response.ok) {
     throw new Error("Add to cart failed");
   }
-/* Always fetch fresh cart drawer from /cart after add */
-var freshSections = await fetchFreshSections();
 
-if (freshSections) {
-  applySections(freshSections);
-} else if (data && data.sections) {
-  applySections(data.sections);
-}
+  var freshSections = await fetchFreshSections();
 
+  if (freshSections) {
+    applySections(freshSections);
+  } else if (data && data.sections) {
+    applySections(data.sections);
+  }
+
+  var cartData = null;
   try {
     var cartResponse = await fetch("/cart.js", {
       credentials: "same-origin",
       cache: "no-store",
-      headers: {
-        Accept: "application/json"
-      }
+      headers: { Accept: "application/json" }
     });
 
     if (cartResponse.ok) {
-      var cartData = await cartResponse.json();
-      triggerCartEvents(cartData);
+      cartData = await cartResponse.json();
     }
   } catch (e) {}
+
+  triggerCartEvents(cartData);
 
   setTimeout(async function () {
     try {
       var refreshed = await fetchFreshSections();
-
-      if (refreshed) {
-        applySections(refreshed);
-      }
+      if (refreshed) applySections(refreshed);
+      triggerCartEvents(cartData);
     } catch (e) {}
-  }, 300);
+  }, 400);
 
   openCartDrawer();
 }
-
     /* -----------------------
        Product map from /products.json
     ------------------------*/
