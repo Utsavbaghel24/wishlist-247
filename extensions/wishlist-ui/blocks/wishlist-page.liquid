@@ -406,7 +406,8 @@ async function fetchFreshSections() {
   var sections = getCartSectionIds();
 
   var response = await fetch(
-"/?sections=" + encodeURIComponent(sections.join(",")) + "&sections_url=" + encodeURIComponent("/cart"),    {
+    "/cart?sections=" + encodeURIComponent(sections.join(",")),
+    {
       credentials: "same-origin",
       cache: "no-store",
       headers: {
@@ -447,16 +448,14 @@ async function addToCartAndRefresh(variantId) {
   if (!response.ok) {
     throw new Error("Add to cart failed");
   }
+/* Always fetch fresh cart drawer from /cart after add */
+var freshSections = await fetchFreshSections();
 
-  if (data && data.sections) {
-    applySections(data.sections);
-  } else {
-    var freshSections = await fetchFreshSections();
-
-    if (freshSections) {
-      applySections(freshSections);
-    }
-  }
+if (freshSections) {
+  applySections(freshSections);
+} else if (data && data.sections) {
+  applySections(data.sections);
+}
 
   try {
     var cartResponse = await fetch("/cart.js", {
