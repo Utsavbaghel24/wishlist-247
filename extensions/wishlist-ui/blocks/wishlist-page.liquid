@@ -249,114 +249,242 @@ Use defer to avoid parser-blocking.
       }
       return "";
     }
+/* ======================================================
+   CART DRAWER REFRESH — SAFE LIVE VERSION
+   - Adds product via Shopify AJAX cart
+   - Refreshes drawer sections without page reload
+   - Supports most Shopify themes including Stiletto
+====================================================== */
 
-    /* ======================================================
-       CART DRAWER REFRESH (FIXED)
-       - Only request stable section ids
-       - Update cart-drawer reliably even if renderContents fails
-    ====================================================== */
-    function getCartSectionIds() {
-      return ["cart-drawer","cart-icon-bubble","cart-notification"];
-    }
+function getCartSectionIds() {
+  return [
+    "cart-drawer",
+    "cart-icon-bubble",
+    "cart-notification",
+    "header"
+  ];
+}
 
-    function htmlToDoc(html) {
-      try {
-        return new DOMParser().parseFromString(String(html || ""), "text/html");
-      } catch(e) {
-        return null;
-      }
-    }
+function parseHTML(html) {
+  try {
+    return new DOMParser().parseFromString(String(html || ""), "text/html");
+  } catch (e) {
+    return null;
+  }
+}
 
-    function setCartDrawerHtml(sectionHtml) {
-      var cd = document.querySelector("cart-drawer");
-      if (!cd) return false;
+function replaceSectionById(sectionId, html) {
+  if (!html) return false;
 
-      var doc = htmlToDoc(sectionHtml);
-      if (doc) {
-        var newCd = doc.querySelector("cart-drawer");
-        if (newCd) {
-          cd.innerHTML = newCd.innerHTML;
-          return true;
-        }
-      }
+  var currentSection = document.getElementById("shopify-section-" + sectionId);
 
-      cd.innerHTML = sectionHtml;
+  if (currentSection) {
+    currentSection.innerHTML = html;
+    return true;
+  }
+
+  return false;
+}
+
+function replaceCartDrawer(sectionHtml) {
+  if (!sectionHtml) return false;
+
+  var currentDrawer =
+    document.querySelector("cart-drawer") ||
+    document.querySelector("#CartDrawer") ||
+    document.querySelector(".cart-drawer") ||
+    document.querySelector("[data-cart-drawer]");
+
+  if (!currentDrawer) return false;
+
+  var doc = parseHTML(sectionHtml);
+
+  if (doc) {
+    var newDrawer =
+      doc.querySelector("cart-drawer") ||
+      doc.querySelector("#CartDrawer") ||
+      doc.querySelector(".cart-drawer") ||
+      doc.querySelector("[data-cart-drawer]");
+
+    if (newDrawer) {
+      currentDrawer.innerHTML = newDrawer.innerHTML;
       return true;
     }
+  }
 
-    function applySections(sectionsObj) {
-      if (!sectionsObj) return;
+  currentDrawer.innerHTML = sectionHtml;
+  return true;
+}
 
-      var cd = document.querySelector("cart-drawer");
-      if (cd && typeof cd.renderContents === "function") {
-        try {
-          cd.renderContents({ sections: sectionsObj });
-          return;
-        } catch(e) {}
-      }
+function applySections(sectionsObj) {
+  if (!sectionsObj) return;
 
-      if (sectionsObj["cart-drawer"]) {
-        setCartDrawerHtml(sectionsObj["cart-drawer"]);
-      }
+  var cd = document.querySelector("cart-drawer");
 
-      for (var key in sectionsObj) {
-        if (!sectionsObj.hasOwnProperty(key)) continue;
-        var html = sectionsObj[key];
+  if (cd && typeof cd.renderContents === "function") {
+    try {
+      cd.renderContents({ sections: sectionsObj });
+    } catch (e) {
+      console.warn("cart drawer render failed", e);
+    }
+  }
 
-        var wrap = document.getElementById("shopify-section-" + key);
-        if (wrap) { wrap.innerHTML = html; continue; }
+  if (sectionsObj["cart-drawer"]) {
+    replaceCartDrawer(sectionsObj["cart-drawer"]);
+  }
 
-        var byId = document.getElementById(key);
-        if (byId && key !== "cart-drawer") { byId.innerHTML = html; continue; }
+  if (sectionsObj["cart-icon-bubble"]) {
+    replaceSectionById("cart-icon-bubble", sectionsObj["cart-icon-bubble"]);
+  }
+
+  if (sectionsObj["cart-notification"]) {
+    replaceSectionById("cart-notification", sectionsObj["cart-notification"]);
+  }
+
+  if (sectionsObj["header"]) {
+    replaceSectionById("header", sectionsObj["header"]);
+  }
+}
+
+function openCartDrawer() {
+  var cd = document.querySelector("cart-drawer");
+
+  if (cd && typeof cd.open === "function") {
+    cd.open();
+    return;
+  }
+
+  var btn =
+    document.querySelector('[data-cart-drawer-toggle]') ||
+    document.querySelector('[data-cart-drawer-open]') ||
+    document.querySelector('[aria-controls*="CartDrawer"]') ||
+    document.querySelector('[href="/cart"]') ||
+    document.querySelector('[href*="/cart"]');
+
+  if (btn) {
+    btn.dispatchEvent(
+      new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true
+      })
+    );
+  }
+}
+
+function triggerCartEvents(cartData) {
+  try {
+    document.dispatchEvent(
+      new CustomEvent("cart:refresh", {
+        bubbles: true,
+        detail: { cart: cartData || null }
+      })
+    );
+
+    document.dispatchEvent(
+      new CustomEvent("cart:update", {
+        bubbles: true,
+        detail: { cart: cartData || null }
+      })
+    );
+
+    document.documentElement.dispatchEvent(
+      new CustomEvent("cart:refresh", {
+        bubbles: true,
+        detail: { cart: cartData || null }
+      })
+    );
+
+    window.dispatchEvent(
+      new CustomEvent("cart:refresh", {
+        detail: { cart: cartData || null }
+      })
+    );
+  } catch (e) {}
+}
+
+async function fetchFreshSections() {
+  var sections = getCartSectionIds();
+
+  var response = await fetch(
+"/?sections=" + encodeURIComponent(sections.join(",")) + "&sections_url=" + encodeURIComponent("/cart"),    {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json"
       }
     }
+  );
 
-    function openCartDrawer() {
-      var cd = document.querySelector("cart-drawer");
-      if (cd && typeof cd.open === "function") { cd.open(); return; }
+  if (!response.ok) return null;
 
-      var btn =
-        document.querySelector('[data-cart-drawer-toggle]') ||
-        document.querySelector('[data-cart-drawer-open]') ||
-        document.querySelector('[aria-controls*="CartDrawer"]') ||
-        document.querySelector('[href="/cart"]') ||
-        document.querySelector('[href*="/cart"]');
+  return await response.json();
+}
 
-      if (btn) btn.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+async function addToCartAndRefresh(variantId) {
+  var sections = getCartSectionIds();
+
+  var fd = new FormData();
+  fd.append("id", String(variantId));
+  fd.append("quantity", "1");
+  fd.append("sections", sections.join(","));
+  fd.append("sections_url", "/cart");
+
+  var response = await fetch("/cart/add.js", {
+    method: "POST",
+    body: fd,
+    credentials: "same-origin",
+    headers: {
+      Accept: "application/json"
     }
+  });
 
-    async function addToCartAndRefresh(variantId) {
-      var sections = getCartSectionIds();
+  var data = null;
 
-      var fd = new FormData();
-      fd.append("id", String(variantId));
-      fd.append("quantity", "1");
-      fd.append("sections", sections.join(","));
-      /* ✅ FIX: render cart drawer using /cart context, not /pages/wishlist */
-      fd.append("sections_url", "/cart");
+  try {
+    data = await response.json();
+  } catch (e) {}
 
-      var r = await fetch("/cart/add.js", { method: "POST", body: fd, credentials: "same-origin" });
-      if (!r.ok) throw new Error("Add to cart failed");
+  if (!response.ok) {
+    throw new Error("Add to cart failed");
+  }
 
-      var j = await r.json();
+  if (data && data.sections) {
+    applySections(data.sections);
+  } else {
+    var freshSections = await fetchFreshSections();
 
-      if (j && j.sections) {
-        applySections(j.sections);
-      } else {
-        var r2 = await fetch("/?sections=" + encodeURIComponent(sections.join(",")), { credentials: "same-origin" });
-        if (r2.ok) {
-          var sec = await r2.json();
-          applySections(sec);
-        }
+    if (freshSections) {
+      applySections(freshSections);
+    }
+  }
+
+  try {
+    var cartResponse = await fetch("/cart.js", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json"
       }
+    });
 
-      try {
-        document.documentElement.dispatchEvent(new CustomEvent("cart:refresh"));
-        document.documentElement.dispatchEvent(new CustomEvent("cart:update"));
-      } catch(e) {}
-
-      openCartDrawer();
+    if (cartResponse.ok) {
+      var cartData = await cartResponse.json();
+      triggerCartEvents(cartData);
     }
+  } catch (e) {}
+
+  setTimeout(async function () {
+    try {
+      var refreshed = await fetchFreshSections();
+
+      if (refreshed) {
+        applySections(refreshed);
+      }
+    } catch (e) {}
+  }, 300);
+
+  openCartDrawer();
+}
 
     /* -----------------------
        Product map from /products.json
