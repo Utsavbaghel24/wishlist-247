@@ -1,6 +1,6 @@
 export const WISHLIST_PLAN = {
   name: "Wishlist Pro",
-  price: 155,
+  price: 220,
   currency: "USD",
   trialDays: 7,
 };
